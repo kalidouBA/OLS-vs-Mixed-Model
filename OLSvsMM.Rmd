@@ -168,7 +168,7 @@ resSim <- simOLS(sims = 100)
  \cmidrule{6-7} 
  \cmidrule{8-9} 
  \cmidrule{10-11} 
- Model & $\boldsymbol{\beta}$&Estimate & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$  \\ 
+ $\boldsymbol{\beta}$&Model&Estimate & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$  \\ 
 \midrule
 &\\
 $\boldsymbol{\beta = 0.5}$&OLS& $\boldsymbol{\hat\beta}$ & `r round(resSim$resAllOLS[[1]][1,1], 3)` & `r round(resSim$resAllOLS[[1]][1,2], 3)` & `r round(resSim$resAllOLS[[2]][1,1], 3)` &  `r round(resSim$resAllOLS[[2]][1,2], 3)` & `r round(resSim$resAllOLS[[3]][1,1], 3)` & `r round(resSim$resAllOLS[[3]][1,2], 3)`& `r round(resSim$resAllOLS[[4]][1,1], 3)` & `r round(resSim$resAllOLS[[4]][1,2], 3)`\\ 
