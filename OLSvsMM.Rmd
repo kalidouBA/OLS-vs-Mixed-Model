@@ -14,8 +14,8 @@ knitr::opts_chunk$set(cache = FALSE, warning = FALSE, message = FALSE, cache.laz
 ```
 
 
-# Initialize
-```{r Initialize}
+# Simulation data
+```{r Simulation}
 set.seed(1)
 K <- 10 # Nombre de groupe
 nK <- 50 # Nombre d'observations par groupe
@@ -39,7 +39,7 @@ ggplot(dataPlot)+geom_boxplot(aes(x=X, y=Y, fill = G))
 ```
 
 
-# linear model
+# Linear model with lm function
 
 ```{r linear model}
 X_prime <- cbind(1, X)
@@ -54,9 +54,8 @@ SD_beta <- solve(crossprod(X_prime)) %*% crossprod(X_prime, Sigma) %*% X_prime %
 sqrt(diag(SD_beta))[2]
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
-# mixed model
+# Mixed model with lmer function 
 
 ```{r mixed model}
 lmerModel <- lme4::lmer(H1, data=df)
@@ -100,6 +99,7 @@ OLS(Y,X)
 
 
 # Monte Carlo
+
 ```{r Monte Carlo}
 simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,4,8,10),
                     K=10, nK=50, sims=5000){
