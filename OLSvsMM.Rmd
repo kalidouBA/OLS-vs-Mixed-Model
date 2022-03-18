@@ -1,5 +1,5 @@
 ---
-title: "Simulating the data and calculating the beta"
+title: "Data simulation and calculation of betas"
 output:
   pdf_document: default
   html_document:
@@ -7,9 +7,11 @@ output:
 ---
 
 ```{r Library}
-library(tidyverse)
 library(knitr) 
 library(kableExtra)
+library(cowplot)
+library(ggforce)
+library(latex2exp)
 knitr::opts_chunk$set(cache = FALSE, warning = FALSE, message = FALSE, cache.lazy = FALSE)
 ```
 
@@ -25,217 +27,423 @@ intercept <- 2
 fixefEffect <- .5
 aleaEffect <- rnorm(K, sd = .5)
 bias <- rnorm(N, sd = .25)
-X <- rbinom(N,size=1,prob = .5)
-Y <- intercept + fixefEffect * X + aleaEffect[G] + bias
 
-df <- data.frame(X, Y, G)
+X <- rbinom(N,size=1,prob = .5)
+# X_gauss <- rnorm(N,1,2)
+Y_withoutAlea <- intercept + fixefEffect * X + bias
+# Y_G <- intercept + fixefEffect * X_gauss + aleaEffect[G]  + bias
+Y <- intercept + fixefEffect * X + aleaEffect[G] + bias
+dfWith <- data.frame(X, Y, G)
+dfWithout <- data.frame(X, Y=Y_withoutAlea, G)
 
 H0 <- formula(Y ~ X)
 H1 <- formula(Y ~ X + (1|G))
 
+dataPlot = cbind.data.frame(X=rep(factor(X),2), Y = c(Y, Y_withoutAlea), 
+                            G = factor(c(G,X),levels = 0:10),
+                            Effect = factor(rep(c("gamma != 1", "gamma == 0"),
+                                                each=length(X))))
 
-dataPlot = cbind.data.frame(X=factor(X),Y, G = factor(G))
-ggplot(dataPlot)+geom_boxplot(aes(x=X, y=Y, fill = G))
+ggplot(dataPlot) +
+  geom_boxplot(aes(x=X, y=Y, fill = G)) +
+  scale_x_discrete(expand = c(0, 0.5)) +
+  theme_bw()+ 
+  ggforce::facet_row(vars(Effect), scales = 'free', space = 'free',
+                     labeller = "label_parsed")
 ```
 
 
 # Linear model with lm function
 
-```{r linear model}
-X_prime <- cbind(1, X)
-lmModel <- lm(H0)
-betaLm <- lmModel$coefficients
-betaLm
-vcov(lmModel) 
 
-Sig2 <- summary(lmModel)$sigma^2; Sig2
-Sigma <- diag(Sig2,N)
-SD_beta <- solve(crossprod(X_prime)) %*% crossprod(X_prime, Sigma) %*% X_prime %*% solve(crossprod(X_prime))
-sqrt(diag(SD_beta))[2]
+
+```{r }
+options(warn=-1)
+X_prime <- cbind(1, X)
+
+# With Random Effect
+lmModel <- lm(H0,data = dfWith)
+Sigm <- sqrt(((summary(lmModel)$sigma)**2)*solve(t(X) %*% X))
+betaLm <- lmModel$coefficients
+SE <- (betaLm[-1] - confint(lmModel)[-1,][1])/1.96
+
+A <- ggplot(dfWith, aes(x = X, y = Y, color = G) ) +
+     geom_point() +
+     geom_smooth(formula = as.formula(y ~ x), method = "lm", se=.3,aes(fill = G))+
+  theme_bw()+theme(legend.position="none")+
+  annotate(geom='text', label=TeX("$\\gamma \\neq 0$"), y=3.7, x=.5)
+
+
+# Without Random Effect
+lmModel <- lm(H0,data = dfWithout)
+Sigm.1 <- sqrt(((summary(lmModel)$sigma)**2)*solve(t(X) %*% X))
+betaLm.1 <- lmModel$coefficients
+SE.1 <- (betaLm.1[-1] - confint(lmModel)[-1,][1])/1.96
+
+B <- ggplot(dfWithout, aes(x = X, y = Y, color = G) ) +
+     geom_point() +
+     geom_smooth(formula = as.formula(y ~ x), method = "lm",se = .3, aes(fill = G))+
+  theme_bw()+theme(axis.title.y = element_blank())+
+  annotate(geom='text', label=TeX("$\\gamma=0$"), y=3, x=.5)
+
+
+cowplot::plot_grid(A, B, labels = c('',''))
+
 ```
+
+\begin{table}[!htbp] \centering 
+\caption{Linear regression estimates with \texttt{lm()}} 
+\begin{tabular}{@{\extracolsep{5pt}} cccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & $\hat{\beta}$ & $SE(\hat{\beta})$ & $\sigma(\hat{\beta})$\\ 
+\hline \\[-1.8ex] 
+$\gamma\ne0$& `r round(betaLm['X'], 4)` &  `r round(SE, 4)` &  `r round(Sigm, 4)`\\ 
+$\gamma=0$& `r round(betaLm.1['X'], 4)` &  `r round(SE.1, 4)` &  `r round(Sigm.1, 4)`\\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
 
 
 # Mixed model with lmer function 
 
-```{r mixed model}
-lmerModel <- lme4::lmer(H1, data=df)
-betaLmer <- lme4::fixef(lmerModel)
-betaLmer
 
-vcov(lmerModel) %>% as.matrix() %>% diag() %>% sqrt()
-sqrt(var(as.vector(lme4::fixef(lmerModel) %*% t(lmerModel@pp$X))))
+
+```{r mixed model}
+options(warn=-1)
+# With Random Effect
+lmerModel <- lme4::lmer(H1, data=dfWith)
+betaLmer <- lme4::fixef(lmerModel)
+SE <- sqrt(diag(as.matrix(vcov(lmerModel))))[-1]
+Sigm <- sqrt(stats::var(as.vector(betaLmer %*% t(X))))
+A <- ggplot(dfWith, aes(x=X, y=Y, colour=G)) +
+    geom_point(size=1.5) +
+    geom_line(aes(y=predict(lmerModel), group=G), size=1.3) +
+      theme_bw()+theme(legend.position="none")+
+  annotate(geom='text', label=TeX("$\\gamma \\neq 0$"), y=3.7, x=.5)
+
+# Without Random Effect
+lmerModel.1 <- lme4::lmer(H1, data=dfWithout)
+betaLmer.1 <- lme4::fixef(lmerModel.1)
+SE.1 <- sqrt(diag(as.matrix(vcov(lmerModel.1))))[-1]
+Sigm.1 <- sqrt(stats::var(as.vector(betaLmer.1 %*% t(X))))
+
+B <- ggplot(dfWithout, aes(x=X, y=Y, colour=G)) +
+    geom_point(size=1.5) +
+    geom_line(aes(y=predict(lmerModel.1), group=G), size=1.3) +
+  theme_bw()+theme(axis.title.y = element_blank())+
+  annotate(geom='text', label=TeX("$\\gamma=0$"), y=3, x=.5)
+cowplot::plot_grid(A, B, labels = c('',''))
 ```
 
+\begin{table}[!htbp] \centering 
+\caption{Mixed Model estimates with \texttt{lmer()}} 
+\begin{tabular}{@{\extracolsep{5pt}} cccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & $\hat{\beta}$ & $SE(\hat{\beta})$  & $\sigma(\hat{\beta})$\\ 
+\hline \\[-1.8ex] 
+$\gamma\ne0$& `r round(betaLmer['X'], 4)` &  `r round(SE, 4)` &  `r round(Sigm, 4)` \\ 
+$\gamma=0$& `r round(betaLmer.1['X'], 4)` &  `r round(SE.1, 4)` &  `r round(Sigm.1, 4)`\\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
 
 
 # OLS
 
 ```{r OLS}
-options(warn=-1)
 OLS <- function(Y, X){
   modelmat <- model.matrix(~.,cbind.data.frame(X=X))
   indexes_X <- which(substring(colnames(modelmat), 1, 1) == "X")
   modX_OLS <- modelmat[, c(1, indexes_X), drop = FALSE]
-  H <- (modX_OLS%*%solve(crossprod(modX_OLS))%*%t(modX_OLS))[indexes_X, , drop=FALSE]
   Y <- as.numeric(Y)
   betaOLS <- solve(crossprod(modX_OLS))%*%(t(modX_OLS)%*%Y)
   k <- ncol(modX_OLS)
   n <- nrow(modX_OLS)
 
-  residuals <- as.matrix(Y - (betaOLS[1, , drop=FALSE]) - X * betaOLS[indexes_X, , drop=FALSE])   
+  residuals <- as.matrix(Y - (betaOLS[1, , drop=FALSE]) - X * betaOLS[indexes_X, , 
+                                                                      drop=FALSE])   
+
   RSS <- as.numeric(t(residuals)%*%residuals)
   Sigma2 <- as.numeric(RSS/(n-k))
   Vb <- Sigma2*solve(t(X)%*% X)
-  SEb <- sqrt(diag(Vb))
+  Sigm <- sqrt(Vb)
+
   OLSCOV <- 1/(n-k) * as.numeric(t(residuals)%*%residuals) * solve(t(modX_OLS)%*%modX_OLS)
-  SD <- sqrt(diag(OLSCOV))
-  return(list('betaOLS'=betaOLS, 'SE'=SEb, 'OLSCOV'=OLSCOV, "SD"=SD))
+  SE <- sqrt(diag(OLSCOV))[-1]
+
+  return(list('betaOLS'=betaOLS[indexes_X, ,drop=FALSE], 'SE'=SE,'Sigm'=Sigm))
 }
+options(warn=-1)
 
-OLS(Y,X)
+# With Random Effect
+res <- OLS(dfWith$Y,X)
 
+# Without Random Effect
+res.1 <- OLS(dfWithout$Y,X)
 ```
+
+\begin{table}[!htbp] \centering 
+\caption{OLS estimates} 
+\begin{tabular}{@{\extracolsep{5pt}} cccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & $\hat{\beta}$ & $SE(\hat{\beta})$  & $\sigma(\hat{\beta})$ \\ 
+\hline \\[-1.8ex] 
+$\gamma\ne0$& `r round(res$betaOLS, 4)` &  `r round(res$SE, 4)` &  `r round(Sigm, 4)` \\ 
+$\gamma=0$& `r round(res.1$betaOLS, 4)` &  `r round(res.1$SE, 4)` & `r round(Sigm.1, 4)`\\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
 
 
 
 # Monte Carlo
 
+## Simulating a mixed model
+
+The following represents a simulate a random intercepts model obtenaid 500 Monte-Carlo replicates.
+The method follows the following simulation framework  from gaussian distributions with or without the presence of random effects:
+
+\begin{equation}
+Y =\beta_0 + \beta X + \gamma G + \epsilon
+\label{eq1} 
+\end{equation}
+
+with $\beta_0 = 2$, $\beta \in \{0.5,2,5,10\}$ the fixed effect of $X\sim \mathcal{B}\binom{n}{0.5}$ with $n = 500$ the number total of samples, $\epsilon \sim \mathcal{N}(0,0.25)$ the bias associated, the random effect of group $\gamma \sim \mathcal{N}(0,\sigma_\gamma)$ if simulated with random effect with $\sigma_\gamma\in\{0.5,5,10,20\})$ and $\gamma=0$ if not random effect and the group $G\in\{1, \dots, K\}$ with $K=10$.
+
+
 ```{r Monte Carlo}
-simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,4,8,10),
+simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20),
                     K=10, nK=50, sims=5000){
-  resAllOLS<- list()
-  resAllMM<- list()
+  resAllOLS.1 <- list()
+  resAllOLS.2 <- list()
+  resAllMM.1 <- list()
+  estimateAll <- matrix(0, length(fixefEffects)*length(sds)*sims, 12)
   n <- K * nK
+  G <- factor(rep(1:K, each = nK))
+  X <- rbinom(n,size=1,prob = .5)
+  k = 1
+  
   for (fixefEffect in fixefEffects) {
     for (sdUnit in sds) {
         aleaEffect <- rnorm(K, sd = sdUnit)
-        G <- factor(rep(1:K, each = nK))
-        resOLS <- matrix(0, sims, 3)
+        resOLS.1 <- matrix(0, sims, 3)
+        resOLS.2 <- matrix(0, sims, 3)
         resMM <- matrix(0, sims, 3)
-        X <- rbinom(n,size=1,prob = .5)
         
         for(i in 1:sims){
           options(warn=-1)
           bias <- rnorm(n, sd = .25)
-          Y <- intercept + fixefEffect * X + aleaEffect[G] + bias
+          Y_with <- intercept + fixefEffect * X + aleaEffect[G] + bias
+          Y_without <- intercept + fixefEffect * X + bias
+          modOLS.1 <- OLS(Y_with,X)
+          modOLS.2 <- OLS(Y_without,X)
           
-          modOLS <- OLS(Y,X)
-          resOLS[i,] <- c(modOLS$betaOLS[2,], modOLS$SE, modOLS$SD[2])
+          resOLS.1[i,] <- c(modOLS.1$betaOLS, modOLS.1$SE, modOLS.1$Sigm)
+          resOLS.2[i,] <- c(modOLS.2$betaOLS, modOLS.2$SE, modOLS.2$Sigm)
           
+          lmerModel.1 <- try({ lme4::lmer(Y_with ~ X + (1|G), REML = TRUE)}, silent = T)
           
-          lmerModel <- lme4::lmer(Y ~ X + (1|G),REML = TRUE)
-          beta <- lme4::fixef(lmerModel)[-1]
-          SE_b <- sqrt(diag(as.matrix(vcov(lmerModel))))[-1]
-          SD_b <- sqrt(stats::var(as.vector(beta %*% t(X))))
-          resMM[i,] <- c(beta, SE_b, SD_b)
+          beta <- lme4::fixef(lmerModel.1)[-1]
+          SE_b <- sqrt(diag(as.matrix(vcov(lmerModel.1))))[-1]
+          Sigm <- sqrt(stats::var(as.vector(beta %*% t(X))))
+          resMM[i,] <- c(beta, SE_b,Sigm)
+          estimateAll[k,] <- c(fixefEffect, modOLS.1$betaOLS,modOLS.2$betaOLS,beta,
+                           modOLS.1$SE,modOLS.2$SE,SE_b,
+                           modOLS.1$Sigm,modOLS.2$Sigm,Sigm,sdUnit,i)
+          k <- k+1
         }
         
-        M <- apply(resOLS, 2, mean)
-        S <- apply(resOLS, 2, sd)
+        M <- apply(resOLS.1, 2, mean)
+        S <- apply(resOLS.1, 2, sd)
+        H_ols.1 <- matrix(c(M[1], S[1], M[2], S[2], M[3], S[3]), ncol = 2, byrow = TRUE)
         
-        H_ols <- matrix(c(M[1], S[1], M[2], S[2], M[3], S[3]), ncol = 2, byrow = TRUE)
+        M <- apply(resOLS.2, 2, mean)
+        S <- apply(resOLS.2, 2, sd)
+        H_ols.2 <- matrix(c(M[1], S[1], M[2], S[2], M[3], S[3]), ncol = 2, byrow = TRUE)
         
-      
         M <- apply(resMM, 2, mean)
         S <- apply(resMM, 2, sd)
         H_mm <- matrix(c(M[1], S[1], M[2], S[2], M[3], S[3]), ncol = 2, byrow = TRUE)
-      
-        dimnames(H_ols) <- dimnames(H_mm) <- list( c('Beta','Standard Error', 
-                                                     'Standard Deviation'), c('mean', 'se'))
+
+        dimnames(H_ols.1) <- dimnames(H_mm) <- 
+          dimnames(H_ols.2)  <- list( c('Beta','Standard Error', 'Sigm'), c('mean', 'se'))
         
-        
-        resAllOLS[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_ols
-        resAllMM[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_mm
+        resAllOLS.1[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_ols.1
+        resAllOLS.2[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_ols.2
+        resAllMM.1[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_mm
     }
    
   }
-  
-  return (list('resAllOLS'=resAllOLS, 'resAllMM'=resAllMM))
+  estimateAll <- as.data.frame(estimateAll)
+  colnames(estimateAll) = c('fixefEffect','betaOLS.1','betaOLS.2','betaMM',
+                            'seOLS.1','seOLS.2','seMM','sigmOLS.1',
+                            'sigmOLS.2','sigmMM','sdUnit','simId')
+  return (list('resAllOLS'=resAllOLS.1, 'resAllMM'=resAllMM.1,
+               'resAllOLSWithoutAleaEffect'=resAllOLS.2, "estimateAll"=estimateAll))
 }
 
-resSim <- simOLS(sims = 100)
+resSim <- simOLS(sims = 500)
+dataPLOT <- cbind.data.frame(betaEs = c(resSim$estimateAll[[2]],resSim$estimateAll[[3]],
+                                        resSim$estimateAll[[4]]),
+                             betas = factor(rep(resSim$estimateAll[[1]],3)),
+                             Sigm = factor(rep(resSim$estimateAll[[11]],3)),
+                             Method = as.factor(rep(c('OLS.1','OLS.2','MM'),
+                                                    each=length(resSim$estimateAll[[1]]))))
+
+dataPLOT$Bias = rep(resSim$estimateAll[[1]],3)-dataPLOT$betaEs
+
+dataPLOT$betas <- gsub(0.5, "beta == 0.5",
+           gsub(2, "beta == 2",
+           gsub(10, "beta == 10",dataPLOT$betas)))
+dataPLOT[dataPLOT$betas==5,'betas']="beta == 5"
+dataPLOT$betas = factor(dataPLOT$betas,levels = c("beta == 0.5","beta == 2", 
+                                                  "beta == 5","beta == 10"))
+
+dataPLOT$Sigm <- gsub(0.5, "gamma == 0.5",
+           gsub(10, "gamma == 10",
+           gsub(20, "gamma == 20",dataPLOT$Sigm)))
+dataPLOT[dataPLOT$Sigm==5,'Sigm']="gamma == 5"
+dataPLOT$Sigm = factor(dataPLOT$Sigm,levels = c("gamma == 0.5","gamma == 5",
+                                                "gamma == 10","gamma == 20"))
+
+ggplot(dataPLOT, aes(Method,betaEs))+
+geom_boxplot(position="dodge",aes(fill=Sigm))+
+facet_wrap(~betas, scales = "free_y",labeller = label_parsed,ncol = 4)+
+  ylab(TeX("$\\hat{\\beta}$"))+
+  scale_x_discrete(labels=c(TeX("$ols_{\\gamma=0}$"),TeX("$ols_{\\gamma\\neq 0}$"),
+                            TeX("$mm_{\\gamma\\neq 0}$")))+
+  scale_fill_discrete(name=TeX("$values\\ of\\ \\gamma$"),
+                         labels=c(TeX("$\\gamma=.5$"),TeX("$\\gamma=5$"),
+                            TeX("$\\gamma=10$"),TeX("$\\gamma=20$")))
+
+ggplot(data=dataPLOT, aes(x=Method, y=Bias))+
+  geom_boxplot()+
+  theme_bw()+
+  facet_grid(betas~Sigm, scales = "free_y",labeller = label_parsed)+
+  theme(strip.text.x = element_text(size=12, face="bold"),
+        strip.text.y = element_text(size=12, face="bold",)) +
+  ylab(TeX("$\\beta-\\hat{\\beta}$"))+
+  scale_x_discrete(labels=c(TeX("$ols_{\\gamma=0}$"),TeX("$ols_{\\gamma\\neq 0}$"),
+                            TeX("$mm_{\\gamma\\neq 0}$")))
+
 ```
-
-
-
-\begin{table}[ht]
+\fontsize{10pt}{20pt}
+\selectfont
+\begin{table}[!htbp]
 \centering
-\begin{tabular}{@{\extracolsep{4pt}}llcccccccccccc}
+\caption{OLS and Mixed Model estimates with 500 Monte-Carlo replicates} 
+{\small
+\resizebox{\textwidth}{!}
+{\begin{tabular}{@{\extracolsep{4pt}}llcccccccccccc}
 \toprule   
-{} & {} & {} & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 0.5}$}  & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 4}$} & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 8}$} & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 10}$}\\
+{} & {} & {} & {} & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 0.5}$}  & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 5}$} & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 10}$} & \multicolumn{2}{c}{$\boldsymbol{\Sigma = 20}$}\\
  
- \cmidrule{4-5} 
- \cmidrule{6-7} 
- \cmidrule{8-9} 
- \cmidrule{10-11} 
- $\boldsymbol{\beta}$&Model&Estimate & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$  \\ 
+ \cmidrule{5-6} 
+ \cmidrule{7-8} 
+ \cmidrule{9-10} 
+ \cmidrule{11-12} 
+ $\boldsymbol{\beta}$& Model & $\boldsymbol{\gamma}$ & Estimate & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$ & $\mu$ & $SE$  \\ 
 \midrule
 &\\
-$\boldsymbol{\beta = 0.5}$&OLS& $\boldsymbol{\hat\beta}$ & `r round(resSim$resAllOLS[[1]][1,1], 3)` & `r round(resSim$resAllOLS[[1]][1,2], 3)` & `r round(resSim$resAllOLS[[2]][1,1], 3)` &  `r round(resSim$resAllOLS[[2]][1,2], 3)` & `r round(resSim$resAllOLS[[3]][1,1], 3)` & `r round(resSim$resAllOLS[[3]][1,2], 3)`& `r round(resSim$resAllOLS[[4]][1,1], 3)` & `r round(resSim$resAllOLS[[4]][1,2], 3)`\\ 
+$\boldsymbol{\beta = 0.5}$&OLS&  $\boldsymbol{\gamma}\ne0$ &$\boldsymbol{\hat\beta}$ & `r round(resSim[[1]][[1]][1,1], 4)` & `r round(resSim[[1]][[1]][1,2], 4)` & `r round(resSim[[1]][[2]][1,1], 4)` &  `r round(resSim[[1]][[2]][1,2], 4)` & `r round(resSim[[1]][[3]][1,1], 4)` & `r round(resSim[[1]][[3]][1,2], 4)`& `r round(resSim[[1]][[4]][1,1], 4)` & `r round(resSim[[1]][[4]][1,2], 4)`\\ 
 
-  & & $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllOLS[[1]][2,1], 3)` & `r round(resSim$resAllOLS[[1]][2,2], 3)` & `r round(resSim$resAllOLS[[2]][2,1], 3)` &  `r round(resSim$resAllOLS[[2]][2,2], 3)` & `r round(resSim$resAllOLS[[3]][2,1], 3)` & `r round(resSim$resAllOLS[[3]][2,2], 3)`& `r round(resSim$resAllOLS[[4]][2,1], 3)` & `r round(resSim$resAllOLS[[4]][2,2], 3)`\\ 
-  
-  & & $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllOLS[[1]][3,1], 3)` & `r round(resSim$resAllOLS[[1]][3,2], 3)` & `r round(resSim$resAllOLS[[2]][3,1], 3)` &  `r round(resSim$resAllOLS[[2]][3,2], 3)` & `r round(resSim$resAllOLS[[3]][3,1], 3)` & `r round(resSim$resAllOLS[[3]][3,2], 3)`& `r round(resSim$resAllOLS[[4]][3,1], 3)` & `r round(resSim$resAllOLS[[4]][3,2], 3)`\\
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[1]][2,1], 4)` & `r round(resSim[[1]][[1]][2,2], 4)` & `r round(resSim[[1]][[2]][2,1], 4)` &  `r round(resSim[[1]][[2]][2,2], 4)` & `r round(resSim[[1]][[3]][2,1], 4)` & `r round(resSim[[1]][[3]][2,2], 4)`& `r round(resSim[[1]][[4]][2,1], 4)` & `r round(resSim[[1]][[4]][2,2], 4)`\\ 
+
+ &&& $\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[1]][3,1], 4)` & `r round(resSim[[1]][[1]][3,2], 4)` & `r round(resSim[[1]][[2]][3,1], 4)` &  `r round(resSim[[1]][[2]][3,2], 4)` & `r round(resSim[[1]][[3]][3,1], 4)` & `r round(resSim[[1]][[3]][3,2], 4)`& `r round(resSim[[1]][[4]][3,1], 4)` & `r round(resSim[[1]][[4]][3,2], 4)`\\
+
+
+\\
+&&$\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ & `r round(resSim[[3]][[1]][1,1], 4)` & `r round(resSim[[3]][[1]][1,2], 4)` & `r round(resSim[[3]][[2]][1,1], 4)` &  `r round(resSim[[3]][[2]][1,2], 4)` & `r round(resSim[[3]][[3]][1,1], 4)` & `r round(resSim[[3]][[3]][1,2], 4)`& `r round(resSim[[3]][[4]][1,1], 4)` & `r round(resSim[[3]][[4]][1,2], 4)`\\ 
+
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[1]][2,1], 4)` & `r round(resSim[[3]][[1]][2,2], 4)` & `r round(resSim[[3]][[2]][2,1], 4)` &  `r round(resSim[[3]][[2]][2,2], 4)` & `r round(resSim[[3]][[3]][2,1], 4)` & `r round(resSim[[3]][[3]][2,2], 4)`& `r round(resSim[[3]][[4]][2,1], 4)` & `r round(resSim[[3]][[4]][2,2], 4)`\\ 
  
+  &&& $\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[1]][3,1], 4)` & `r round(resSim[[3]][[1]][3,2], 4)` & `r round(resSim[[3]][[2]][3,1], 4)` &  `r round(resSim[[3]][[2]][3,2], 4)` & `r round(resSim[[3]][[3]][3,1], 4)` & `r round(resSim[[3]][[3]][3,2], 4)`& `r round(resSim[[3]][[4]][3,1], 4)` & `r round(resSim[[3]][[4]][3,2], 4)`\\ 
+
  \\
- 
- & MM & $\boldsymbol{\hat\beta}$ & `r round(resSim$resAllMM[[1]][1,1], 3)` & `r round(resSim$resAllMM[[1]][1,2], 3)` & `r round(resSim$resAllMM[[2]][1,1], 3)` &  `r round(resSim$resAllMM[[2]][1,2], 3)` & `r round(resSim$resAllMM[[3]][1,1], 3)` & `r round(resSim$resAllMM[[3]][1,2], 3)`& `r round(resSim$resAllMM[[4]][1,1], 3)` & `r round(resSim$resAllMM[[4]][1,2], 3)`\\ 
+&MM& $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\beta}$ & `r round(resSim[[2]][[1]][1,1], 4)` & `r round(resSim[[2]][[1]][1,2], 4)` & `r round(resSim[[2]][[2]][1,1], 4)` &  `r round(resSim[[2]][[2]][1,2], 4)` & `r round(resSim[[2]][[3]][1,1], 4)` & `r round(resSim[[2]][[3]][1,2], 4)`& `r round(resSim[[2]][[4]][1,1], 4)` & `r round(resSim[[2]][[4]][1,2], 4)`\\ 
 
-  & & $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllMM[[1]][2,1], 3)` & `r round(resSim$resAllMM[[1]][2,2], 3)` & `r round(resSim$resAllMM[[2]][2,1], 3)` &  `r round(resSim$resAllMM[[2]][2,2], 3)` & `r round(resSim$resAllMM[[3]][2,1], 3)` & `r round(resSim$resAllMM[[3]][2,2], 3)`& `r round(resSim$resAllMM[[4]][2,1], 3)` & `r round(resSim$resAllMM[[4]][2,2], 3)`\\ 
-  
- & & $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllMM[[1]][3,1], 3)` & `r round(resSim$resAllMM[[1]][3,2], 3)` & `r round(resSim$resAllMM[[2]][3,1], 3)` &  `r round(resSim$resAllMM[[2]][3,2], 3)` & `r round(resSim$resAllMM[[3]][3,1], 3)` & `r round(resSim$resAllMM[[3]][3,2], 3)`& `r round(resSim$resAllMM[[4]][3,1], 3)` & `r round(resSim$resAllMM[[4]][3,2], 3)`\\
-  
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[1]][2,1], 4)` & `r round(resSim[[2]][[1]][2,2], 4)` & `r round(resSim[[2]][[2]][2,1], 4)` &  `r round(resSim[[2]][[2]][2,2], 4)` & `r round(resSim[[2]][[3]][2,1], 4)` & `r round(resSim[[2]][[3]][2,2], 4)`& `r round(resSim[[2]][[4]][2,1], 4)` & `r round(resSim[[2]][[4]][2,2], 4)`\\ 
+
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[1]][3,1], 4)` & `r round(resSim[[2]][[1]][3,2], 4)` & `r round(resSim[[2]][[2]][3,1], 4)` &  `r round(resSim[[2]][[2]][3,2], 4)` & `r round(resSim[[2]][[3]][3,1], 4)` & `r round(resSim[[2]][[3]][3,2], 4)`& `r round(resSim[[2]][[4]][3,1], 4)` & `r round(resSim[[2]][[4]][3,2], 4)`\\
+
+
   \hline
 &\\
 
-$\boldsymbol{\beta = 2}$  & OLS & $\boldsymbol{\hat\beta}$ & `r round(resSim$resAllOLS[[5]][1,1], 3)` & `r round(resSim$resAllOLS[[5]][1,2], 3)` & `r round(resSim$resAllOLS[[6]][1,1], 3)` &  `r round(resSim$resAllOLS[[6]][1,2], 3)` & `r round(resSim$resAllOLS[[7]][1,1], 3)` & `r round(resSim$resAllOLS[[7]][1,2], 3)`& `r round(resSim$resAllOLS[[8]][1,1], 3)` & `r round(resSim$resAllOLS[[8]][1,2], 3)`\\ 
+$\boldsymbol{\beta = 2}$  & OLS & $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\beta}$ & `r round(resSim[[1]][[5]][1,1], 4)` & `r round(resSim[[1]][[5]][1,2], 4)` & `r round(resSim[[1]][[6]][1,1], 4)` &  `r round(resSim[[1]][[6]][1,2], 4)` & `r round(resSim[[1]][[7]][1,1], 4)` & `r round(resSim[[1]][[7]][1,2], 4)`& `r round(resSim[[1]][[8]][1,1], 4)` & `r round(resSim[[1]][[8]][1,2], 4)`\\ 
 
-  && $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllOLS[[5]][2,1], 3)` & `r round(resSim$resAllOLS[[5]][2,2], 3)` & `r round(resSim$resAllOLS[[6]][2,1], 3)` &  `r round(resSim$resAllOLS[[6]][2,2], 3)` & `r round(resSim$resAllOLS[[7]][2,1], 3)` & `r round(resSim$resAllOLS[[7]][2,2], 3)`& `r round(resSim$resAllOLS[[8]][2,1], 3)` & `r round(resSim$resAllOLS[[8]][2,2], 3)`\\ 
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[5]][2,1], 4)` & `r round(resSim[[1]][[5]][2,2], 4)` & `r round(resSim[[1]][[6]][2,1], 4)` &  `r round(resSim[[1]][[6]][2,2], 4)` & `r round(resSim[[1]][[7]][2,1], 4)` & `r round(resSim[[1]][[7]][2,2], 4)`& `r round(resSim[[1]][[8]][2,1], 4)` & `r round(resSim[[1]][[8]][2,2], 4)`\\ 
   
-  && $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllOLS[[5]][3,1], 3)` & `r round(resSim$resAllOLS[[5]][3,2], 3)` & `r round(resSim$resAllOLS[[6]][3,1], 3)` &  `r round(resSim$resAllOLS[[6]][3,2], 3)` & `r round(resSim$resAllOLS[[7]][3,1], 3)` & `r round(resSim$resAllOLS[[7]][3,2], 3)`& `r round(resSim$resAllOLS[[8]][3,1], 3)` & `r round(resSim$resAllOLS[[8]][3,2], 3)`\\ 
-  
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[5]][3,1], 4)` & `r round(resSim[[1]][[5]][3,2], 4)` & `r round(resSim[[1]][[6]][3,1], 4)` &  `r round(resSim[[1]][[6]][3,2], 4)` & `r round(resSim[[1]][[7]][3,1], 4)` & `r round(resSim[[1]][[7]][3,2], 4)`& `r round(resSim[[1]][[8]][3,1], 4)` & `r round(resSim[[1]][[8]][3,2], 4)`\\ 
+
+\\
+&&  $\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[3]][[5]][1,1], 4)` & `r round(resSim[[3]][[5]][1,2], 4)` & `r round(resSim[[3]][[6]][1,1], 4)` &  `r round(resSim[[3]][[6]][1,2], 4)` & `r round(resSim[[3]][[7]][1,1], 4)` & `r round(resSim[[3]][[7]][1,2], 4)`& `r round(resSim[[3]][[8]][1,1], 4)` & `r round(resSim[[3]][[8]][1,2], 4)`\\ 
+
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[5]][2,1], 4)` & `r round(resSim[[3]][[5]][2,2], 4)` & `r round(resSim[[3]][[6]][2,1], 4)` &  `r round(resSim[[3]][[6]][2,2], 4)` & `r round(resSim[[3]][[7]][2,1], 4)` & `r round(resSim[[3]][[7]][2,2], 4)`& `r round(resSim[[3]][[8]][2,1], 4)` & `r round(resSim[[3]][[8]][2,2], 4)`\\ 
+
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[5]][3,1], 4)` & `r round(resSim[[3]][[5]][3,2], 4)` & `r round(resSim[[3]][[6]][3,1], 4)` &  `r round(resSim[[3]][[6]][3,2], 4)` & `r round(resSim[[3]][[7]][3,1], 4)` & `r round(resSim[[3]][[7]][3,2], 4)`& `r round(resSim[[3]][[8]][3,1], 4)` & `r round(resSim[[3]][[8]][3,2], 4)`\\
+
  \\ 
   
- &  MM & $\boldsymbol{\hat\beta}$ & `r round(resSim$resAllMM[[5]][1,1], 3)` & `r round(resSim$resAllMM[[5]][1,2], 3)` & `r round(resSim$resAllMM[[6]][1,1], 3)` &  `r round(resSim$resAllMM[[6]][1,2], 3)` & `r round(resSim$resAllMM[[7]][1,1], 3)` & `r round(resSim$resAllMM[[7]][1,2], 3)`& `r round(resSim$resAllMM[[8]][1,1], 3)` & `r round(resSim$resAllMM[[8]][1,2], 3)`\\ 
+ &MM&$\boldsymbol{\gamma}\ne0$& $\boldsymbol{\hat\beta}$ & `r round(resSim[[2]][[5]][1,1], 4)` & `r round(resSim[[2]][[5]][1,2], 4)` & `r round(resSim[[2]][[6]][1,1], 4)` &  `r round(resSim[[2]][[6]][1,2], 4)` & `r round(resSim[[2]][[7]][1,1], 4)` & `r round(resSim[[2]][[7]][1,2], 4)`& `r round(resSim[[2]][[8]][1,1], 4)` & `r round(resSim[[2]][[8]][1,2], 4)`\\ 
 
-  && $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllMM[[5]][2,1], 3)` & `r round(resSim$resAllMM[[5]][2,2], 3)` & `r round(resSim$resAllMM[[6]][2,1], 3)` &  `r round(resSim$resAllMM[[6]][2,2], 3)` & `r round(resSim$resAllMM[[7]][2,1], 3)` & `r round(resSim$resAllMM[[7]][2,2], 3)`& `r round(resSim$resAllMM[[8]][2,1], 3)` & `r round(resSim$resAllMM[[8]][2,2], 3)`\\ 
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[5]][2,1], 4)` & `r round(resSim[[2]][[5]][2,2], 4)` & `r round(resSim[[2]][[6]][2,1], 4)` &  `r round(resSim[[2]][[6]][2,2], 4)` & `r round(resSim[[2]][[7]][2,1], 4)` & `r round(resSim[[2]][[7]][2,2], 4)`& `r round(resSim[[2]][[8]][2,1], 4)` & `r round(resSim[[2]][[8]][2,2], 4)`\\ 
   
-  && $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllMM[[5]][3,1], 3)` & `r round(resSim$resAllMM[[5]][3,2], 3)` & `r round(resSim$resAllMM[[6]][3,1], 3)` &  `r round(resSim$resAllMM[[6]][3,2], 3)` & `r round(resSim$resAllMM[[7]][3,1], 3)` & `r round(resSim$resAllMM[[7]][3,2], 3)`& `r round(resSim$resAllMM[[8]][3,1], 3)` & `r round(resSim$resAllMM[[8]][3,2], 3)`\\
-  
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[5]][3,1], 4)` & `r round(resSim[[2]][[5]][3,2], 4)` & `r round(resSim[[2]][[6]][3,1], 4)` &  `r round(resSim[[2]][[6]][3,2], 4)` & `r round(resSim[[2]][[7]][3,1], 4)` & `r round(resSim[[2]][[7]][3,2], 4)`& `r round(resSim[[2]][[8]][3,1], 4)` & `r round(resSim[[2]][[8]][3,2], 4)`\\
+
   \hline
 &\\
-$\boldsymbol{\beta = 5}$  & OLS & $\boldsymbol{\hat\beta}$ &  `r round(resSim$resAllOLS[[9]][1,1], 3)` & `r round(resSim$resAllOLS[[9]][1,2], 3)` & `r round(resSim$resAllOLS[[10]][1,1], 3)` &  `r round(resSim$resAllOLS[[10]][1,2], 3)` & `r round(resSim$resAllOLS[[11]][1,1], 3)` & `r round(resSim$resAllOLS[[11]][1,2], 3)`& `r round(resSim$resAllOLS[[12]][1,1], 3)` & `r round(resSim$resAllOLS[[12]][1,2], 3)`\\ 
+$\boldsymbol{\beta = 5}$  & OLS &$\boldsymbol{\gamma}\ne0$& $\boldsymbol{\hat\beta}$ &  `r round(resSim[[1]][[9]][1,1], 4)` & `r round(resSim[[1]][[9]][1,2], 4)` & `r round(resSim[[1]][[10]][1,1], 4)` &  `r round(resSim[[1]][[10]][1,2], 4)` & `r round(resSim[[1]][[11]][1,1], 4)` & `r round(resSim[[1]][[11]][1,2], 4)`& `r round(resSim[[1]][[12]][1,1], 4)` & `r round(resSim[[1]][[12]][1,2], 4)`\\ 
 
-&  & $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllOLS[[9]][2,1], 3)` & `r round(resSim$resAllOLS[[9]][2,2], 3)` & `r round(resSim$resAllOLS[[10]][2,1], 3)` &  `r round(resSim$resAllOLS[[10]][2,2], 3)` & `r round(resSim$resAllOLS[[11]][2,1], 3)` & `r round(resSim$resAllOLS[[11]][2,2], 3)`& `r round(resSim$resAllOLS[[12]][2,1], 3)` & `r round(resSim$resAllOLS[[12]][2,2], 3)`\\ 
+&&& $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[9]][2,1], 4)` & `r round(resSim[[1]][[9]][2,2], 4)` & `r round(resSim[[1]][[10]][2,1], 4)` &  `r round(resSim[[1]][[10]][2,2], 4)` & `r round(resSim[[1]][[11]][2,1], 4)` & `r round(resSim[[1]][[11]][2,2], 4)`& `r round(resSim[[1]][[12]][2,1], 4)` & `r round(resSim[[1]][[12]][2,2], 4)`\\ 
+
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[9]][3,1], 4)` & `r round(resSim[[1]][[9]][3,2], 4)` & `r round(resSim[[1]][[10]][3,1], 4)` &  `r round(resSim[[1]][[10]][3,2], 4)` & `r round(resSim[[1]][[11]][3,1], 4)` & `r round(resSim[[1]][[11]][3,2], 4)`& `r round(resSim[[1]][[12]][3,1], 4)` & `r round(resSim[[1]][[12]][3,2], 4)`\\ 
   
- & & $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllOLS[[9]][3,1], 3)` & `r round(resSim$resAllOLS[[9]][3,2], 3)` & `r round(resSim$resAllOLS[[10]][3,1], 3)` &  `r round(resSim$resAllOLS[[10]][3,2], 3)` & `r round(resSim$resAllOLS[[11]][3,1], 3)` & `r round(resSim$resAllOLS[[11]][3,2], 3)`& `r round(resSim$resAllOLS[[12]][3,1], 3)` & `r round(resSim$resAllOLS[[12]][3,2], 3)`\\ 
+
+\\
+&&  $\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[3]][[9]][1,1], 4)` & `r round(resSim[[3]][[9]][1,2], 4)` & `r round(resSim[[3]][[10]][1,1], 4)` &  `r round(resSim[[3]][[10]][1,2], 4)` & `r round(resSim[[3]][[11]][1,1], 4)` & `r round(resSim[[3]][[11]][1,2], 4)`& `r round(resSim[[3]][[12]][1,1], 4)` & `r round(resSim[[3]][[12]][1,2], 4)`\\ 
+
+&&& $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[9]][2,1], 4)` & `r round(resSim[[3]][[9]][2,2], 4)` & `r round(resSim[[3]][[10]][2,1], 4)` &  `r round(resSim[[3]][[10]][2,2], 4)` & `r round(resSim[[3]][[11]][2,1], 4)` & `r round(resSim[[3]][[11]][2,2], 4)`& `r round(resSim[[3]][[12]][2,1], 4)` & `r round(resSim[[3]][[12]][2,2], 4)`\\ 
+
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[9]][3,1], 4)` & `r round(resSim[[3]][[9]][3,2], 4)` & `r round(resSim[[3]][[10]][3,1], 4)` &  `r round(resSim[[3]][[10]][3,2], 4)` & `r round(resSim[[3]][[11]][3,1], 4)` & `r round(resSim[[3]][[11]][3,2], 4)`& `r round(resSim[[3]][[12]][3,1], 4)` & `r round(resSim[[3]][[12]][3,2], 4)`\\ 
+
   
   \\
- & MM & $\boldsymbol{\hat\beta}$ &  `r round(resSim$resAllMM[[9]][1,1], 3)` & `r round(resSim$resAllMM[[9]][1,2], 3)` & `r round(resSim$resAllMM[[10]][1,1], 3)` &  `r round(resSim$resAllMM[[10]][1,2], 3)` & `r round(resSim$resAllMM[[11]][1,1], 3)` & `r round(resSim$resAllMM[[11]][1,2], 3)`& `r round(resSim$resAllMM[[12]][1,1], 3)` & `r round(resSim$resAllMM[[12]][1,2], 3)`\\ 
+&MM&$\boldsymbol{\gamma}\ne0$& $\boldsymbol{\hat\beta}$ &  `r round(resSim[[2]][[9]][1,1], 4)` & `r round(resSim[[2]][[9]][1,2], 4)` & `r round(resSim[[2]][[10]][1,1], 4)` &  `r round(resSim[[2]][[10]][1,2], 4)` & `r round(resSim[[2]][[11]][1,1], 4)` & `r round(resSim[[2]][[11]][1,2], 4)`& `r round(resSim[[2]][[12]][1,1], 4)` & `r round(resSim[[2]][[12]][1,2], 4)`\\ 
 
-&  & $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllMM[[9]][2,1], 3)` & `r round(resSim$resAllMM[[9]][2,2], 3)` & `r round(resSim$resAllMM[[10]][2,1], 3)` &  `r round(resSim$resAllMM[[10]][2,2], 3)` & `r round(resSim$resAllMM[[11]][2,1], 3)` & `r round(resSim$resAllMM[[11]][2,2], 3)`& `r round(resSim$resAllMM[[12]][2,1], 3)` & `r round(resSim$resAllMM[[12]][2,2], 3)`\\ 
-  
- & & $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllMM[[9]][3,1], 3)` & `r round(resSim$resAllMM[[9]][3,2], 3)` & `r round(resSim$resAllMM[[10]][3,1], 3)` &  `r round(resSim$resAllMM[[10]][3,2], 3)` & `r round(resSim$resAllMM[[11]][3,1], 3)` & `r round(resSim$resAllMM[[11]][3,2], 3)`& `r round(resSim$resAllMM[[12]][3,1], 3)` & `r round(resSim$resAllMM[[12]][3,2], 3)`\\
-  
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[9]][2,1], 4)` & `r round(resSim[[2]][[9]][2,2], 4)` & `r round(resSim[[2]][[10]][2,1], 4)` &  `r round(resSim[[2]][[10]][2,2], 4)` & `r round(resSim[[2]][[11]][2,1], 4)` & `r round(resSim[[2]][[11]][2,2], 4)`& `r round(resSim[[2]][[12]][2,1], 4)` & `r round(resSim[[2]][[12]][2,2], 4)`\\ 
+
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[9]][3,1], 4)` & `r round(resSim[[2]][[9]][3,2], 4)` & `r round(resSim[[2]][[10]][3,1], 4)` &  `r round(resSim[[2]][[10]][3,2], 4)` & `r round(resSim[[2]][[11]][3,1], 4)` & `r round(resSim[[2]][[11]][3,2], 4)`& `r round(resSim[[2]][[12]][3,1], 4)` & `r round(resSim[[2]][[12]][3,2], 4)`\\
+
   \hline
 &\\
-$\boldsymbol{\beta = 10}$  & OLS & $\boldsymbol{\hat\beta}$ & `r round(resSim$resAllOLS[[13]][1,1], 3)` & `r round(resSim$resAllOLS[[13]][1,2], 3)` & `r round(resSim$resAllOLS[[14]][1,1], 3)` &  `r round(resSim$resAllOLS[[14]][1,2], 3)` & `r round(resSim$resAllOLS[[15]][1,1], 3)` & `r round(resSim$resAllOLS[[15]][1,2], 3)`& `r round(resSim$resAllOLS[[16]][1,1], 3)` & `r round(resSim$resAllOLS[[16]][1,2], 3)`\\ 
+$\boldsymbol{\beta = 10}$  & OLS & $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\beta}$ & `r round(resSim[[1]][[13]][1,1], 4)` & `r round(resSim[[1]][[13]][1,2], 4)` & `r round(resSim[[1]][[14]][1,1], 4)` &  `r round(resSim[[1]][[14]][1,2], 4)` & `r round(resSim[[1]][[15]][1,1], 4)` & `r round(resSim[[1]][[15]][1,2], 4)`& `r round(resSim[[1]][[16]][1,1], 4)` & `r round(resSim[[1]][[16]][1,2], 4)`\\ 
 
-  && $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllOLS[[13]][2,1], 3)` & `r round(resSim$resAllOLS[[13]][2,2], 3)` & `r round(resSim$resAllOLS[[14]][2,1], 3)` &  `r round(resSim$resAllOLS[[14]][2,2], 3)` & `r round(resSim$resAllOLS[[15]][2,1], 3)` & `r round(resSim$resAllOLS[[15]][2,2], 3)`& `r round(resSim$resAllOLS[[16]][2,1], 3)` & `r round(resSim$resAllOLS[[16]][2,2], 3)`\\ 
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[13]][2,1], 4)` & `r round(resSim[[1]][[13]][2,2], 4)` & `r round(resSim[[1]][[14]][2,1], 4)` &  `r round(resSim[[1]][[14]][2,2], 4)` & `r round(resSim[[1]][[15]][2,1], 4)` & `r round(resSim[[1]][[15]][2,2], 4)`& `r round(resSim[[1]][[16]][2,1], 4)` & `r round(resSim[[1]][[16]][2,2], 4)`\\ 
   
-&& $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllOLS[[13]][3,1], 3)` & `r round(resSim$resAllOLS[[13]][3,2], 3)` & `r round(resSim$resAllOLS[[14]][3,1], 3)` &  `r round(resSim$resAllOLS[[14]][3,2], 3)` & `r round(resSim$resAllOLS[[15]][3,1], 3)` & `r round(resSim$resAllOLS[[15]][3,2], 3)`& `r round(resSim$resAllOLS[[16]][3,1], 3)` & `r round(resSim$resAllOLS[[16]][3,2], 3)`\\
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[13]][3,1], 4)` & `r round(resSim[[1]][[13]][3,2], 4)` & `r round(resSim[[1]][[14]][3,1], 4)` &  `r round(resSim[[1]][[14]][3,2], 4)` & `r round(resSim[[1]][[15]][3,1], 4)` & `r round(resSim[[1]][[15]][3,2], 4)`& `r round(resSim[[1]][[16]][3,1], 4)` & `r round(resSim[[1]][[16]][3,2], 4)`\\
+
+\\
+&& $\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[3]][[13]][1,1], 4)` & `r round(resSim[[3]][[13]][1,2], 4)` & `r round(resSim[[3]][[14]][1,1], 4)` &  `r round(resSim[[3]][[14]][1,2], 4)` & `r round(resSim[[3]][[15]][1,1], 4)` & `r round(resSim[[3]][[15]][1,2], 4)`& `r round(resSim[[3]][[16]][1,1], 4)` & `r round(resSim[[3]][[16]][1,2], 4)`\\ 
+
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[13]][2,1], 4)` & `r round(resSim[[3]][[13]][2,2], 4)` & `r round(resSim[[3]][[14]][2,1], 4)` &  `r round(resSim[[3]][[14]][2,2], 4)` & `r round(resSim[[3]][[15]][2,1], 4)` & `r round(resSim[[3]][[15]][2,2], 4)`& `r round(resSim[[3]][[16]][2,1], 4)` & `r round(resSim[[3]][[16]][2,2], 4)`\\ 
+  
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[13]][3,1], 4)` & `r round(resSim[[3]][[13]][3,2], 4)` & `r round(resSim[[3]][[14]][3,1], 4)` &  `r round(resSim[[3]][[14]][3,2], 4)` & `r round(resSim[[3]][[15]][3,1], 4)` & `r round(resSim[[3]][[15]][3,2], 4)`& `r round(resSim[[3]][[16]][3,1], 4)` & `r round(resSim[[3]][[16]][3,2], 4)`\\
 
  \\
- &  MM & $\boldsymbol{\hat\beta}$ &  `r round(resSim$resAllMM[[13]][1,1], 3)` & `r round(resSim$resAllMM[[13]][1,2], 3)` & `r round(resSim$resAllMM[[14]][1,1], 3)` &  `r round(resSim$resAllMM[[14]][1,2], 3)` & `r round(resSim$resAllMM[[15]][1,1], 3)` & `r round(resSim$resAllMM[[15]][1,2], 3)`& `r round(resSim$resAllMM[[16]][1,1], 3)` & `r round(resSim$resAllMM[[16]][1,2], 3)`\\ 
+ &MM &$\boldsymbol{\gamma}\ne0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[2]][[13]][1,1], 4)` & `r round(resSim[[2]][[13]][1,2], 4)` & `r round(resSim[[2]][[14]][1,1], 4)` &  `r round(resSim[[2]][[14]][1,2], 4)` & `r round(resSim[[2]][[15]][1,1], 4)` & `r round(resSim[[2]][[15]][1,2], 4)`& `r round(resSim[[2]][[16]][1,1], 4)` & `r round(resSim[[2]][[16]][1,2], 4)`\\ 
 
-  && $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim$resAllMM[[13]][2,1], 3)` & `r round(resSim$resAllMM[[13]][2,2], 3)` & `r round(resSim$resAllMM[[14]][2,1], 3)` &  `r round(resSim$resAllMM[[14]][2,2], 3)` & `r round(resSim$resAllMM[[15]][2,1], 3)` & `r round(resSim$resAllMM[[15]][2,2], 3)`& `r round(resSim$resAllMM[[16]][2,1], 3)` & `r round(resSim$resAllMM[[16]][2,2], 3)`\\ 
+&&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[13]][2,1], 4)` & `r round(resSim[[2]][[13]][2,2], 4)` & `r round(resSim[[2]][[14]][2,1], 4)` &  `r round(resSim[[2]][[14]][2,2], 4)` & `r round(resSim[[2]][[15]][2,1], 4)` & `r round(resSim[[2]][[15]][2,2], 4)`& `r round(resSim[[2]][[16]][2,1], 4)` & `r round(resSim[[2]][[16]][2,2], 4)`\\ 
   
-&& $\boldsymbol{SD(\hat\beta)}$ & `r round(resSim$resAllMM[[13]][3,1], 3)` & `r round(resSim$resAllMM[[13]][3,2], 3)` & `r round(resSim$resAllMM[[14]][3,1], 3)` &  `r round(resSim$resAllMM[[14]][3,2], 3)` & `r round(resSim$resAllMM[[15]][3,1], 3)` & `r round(resSim$resAllMM[[15]][3,2], 3)`& `r round(resSim$resAllMM[[16]][3,1], 3)` & `r round(resSim$resAllMM[[16]][3,2], 3)`\\
-  
+&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[13]][3,1], 4)` & `r round(resSim[[2]][[13]][3,2], 4)` & `r round(resSim[[2]][[14]][3,1], 4)` &  `r round(resSim[[2]][[14]][3,2], 4)` & `r round(resSim[[2]][[15]][3,1], 4)` & `r round(resSim[[2]][[15]][3,2], 4)`& `r round(resSim[[2]][[16]][3,1], 4)` & `r round(resSim[[2]][[16]][3,2], 4)`\\
+
 &\\
 \bottomrule
 \end{tabular}
-\caption{OLS and Mixed Model estimates with 100 Monte-Carlo replicates} 
+}} 
 \end{table}
 
 
