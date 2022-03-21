@@ -319,9 +319,9 @@ facet_wrap(~betas, scales = "free_y",labeller = label_parsed,ncol = 4)+
                             TeX("$mm_{\\gamma\\neq 0}$")))+
   theme(strip.text.x = element_text(size=12, face="bold"),
         strip.text.y = element_text(size=12, face="bold",)) +
-  scale_fill_discrete(name=TeX("$values\\ of\\ \\gamma$"),
-                         labels=c(TeX("$\\gamma=.5$"),TeX("$\\gamma=5$"),
-                            TeX("$\\gamma=10$"),TeX("$\\gamma=20$")))
+  scale_fill_discrete(name=TeX("$values\\ of\\ \\Sigma$"),
+                         labels=c(TeX("$\\Sigma=.5$"),TeX("$\\Sigma=5$"),
+                            TeX("$\\Sigma=10$"),TeX("$\\Sigma=20$")))
 ```
 
 
