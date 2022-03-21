@@ -12,13 +12,14 @@ library(kableExtra)
 library(cowplot)
 library(ggforce)
 library(latex2exp)
+library(reshape2)
+library(dplyr)
 knitr::opts_chunk$set(cache = FALSE, warning = FALSE, message = FALSE, cache.lazy = FALSE)
 ```
 
 
 # Simulation data
 ```{r Simulation}
-set.seed(1)
 K <- 10 # Nombre de groupe
 nK <- 50 # Nombre d'observations par groupe
 N <- K * nK # Nombre total d'observation
@@ -27,7 +28,6 @@ intercept <- 2
 fixefEffect <- .5
 aleaEffect <- rnorm(K, sd = .5)
 bias <- rnorm(N, sd = .25)
-
 X <- rbinom(N,size=1,prob = .5)
 # X_gauss <- rnorm(N,1,2)
 Y_withoutAlea <- intercept + fixefEffect * X + bias
@@ -35,7 +35,6 @@ Y_withoutAlea <- intercept + fixefEffect * X + bias
 Y <- intercept + fixefEffect * X + aleaEffect[G] + bias
 dfWith <- data.frame(X, Y, G)
 dfWithout <- data.frame(X, Y=Y_withoutAlea, G)
-
 H0 <- formula(Y ~ X)
 H1 <- formula(Y ~ X + (1|G))
 
@@ -43,7 +42,6 @@ dataPlot = cbind.data.frame(X=rep(factor(X),2), Y = c(Y, Y_withoutAlea),
                             G = factor(c(G,X),levels = 0:10),
                             Effect = factor(rep(c("gamma != 1", "gamma == 0"),
                                                 each=length(X))))
-
 ggplot(dataPlot) +
   geom_boxplot(aes(x=X, y=Y, fill = G)) +
   scale_x_discrete(expand = c(0, 0.5)) +
@@ -85,10 +83,7 @@ B <- ggplot(dfWithout, aes(x = X, y = Y, color = G) ) +
      geom_smooth(formula = as.formula(y ~ x), method = "lm",se = .3, aes(fill = G))+
   theme_bw()+theme(axis.title.y = element_blank())+
   annotate(geom='text', label=TeX("$\\gamma=0$"), y=3, x=.5)
-
-
 cowplot::plot_grid(A, B, labels = c('',''))
-
 ```
 
 \begin{table}[!htbp] \centering 
@@ -121,7 +116,6 @@ A <- ggplot(dfWith, aes(x=X, y=Y, colour=G)) +
     geom_line(aes(y=predict(lmerModel), group=G), size=1.3) +
       theme_bw()+theme(legend.position="none")+
   annotate(geom='text', label=TeX("$\\gamma \\neq 0$"), y=3.7, x=.5)
-
 # Without Random Effect
 lmerModel.1 <- lme4::lmer(H1, data=dfWithout)
 betaLmer.1 <- lme4::fixef(lmerModel.1)
@@ -164,22 +158,17 @@ OLS <- function(Y, X){
 
   residuals <- as.matrix(Y - (betaOLS[1, , drop=FALSE]) - X * betaOLS[indexes_X, , 
                                                                       drop=FALSE])   
-
   RSS <- as.numeric(t(residuals)%*%residuals)
   Sigma2 <- as.numeric(RSS/(n-k))
   Vb <- Sigma2*solve(t(X)%*% X)
   Sigm <- sqrt(Vb)
-
   OLSCOV <- 1/(n-k) * as.numeric(t(residuals)%*%residuals) * solve(t(modX_OLS)%*%modX_OLS)
   SE <- sqrt(diag(OLSCOV))[-1]
-
   return(list('betaOLS'=betaOLS[indexes_X, ,drop=FALSE], 'SE'=SE,'Sigm'=Sigm))
 }
 options(warn=-1)
-
 # With Random Effect
 res <- OLS(dfWith$Y,X)
-
 # Without Random Effect
 res.1 <- OLS(dfWithout$Y,X)
 ```
@@ -198,10 +187,9 @@ $\gamma=0$& `r round(res.1$betaOLS, 4)` &  `r round(res.1$SE, 4)` & `r round(Sig
 \end{table} 
 
 
-
 # Monte Carlo
 
-## Simulating a mixed model
+## Simulating data
 
 The following represents a simulate a random intercepts model obtenaid 500 Monte-Carlo replicates.
 The method follows the following simulation framework  from gaussian distributions with or without the presence of random effects:
@@ -214,25 +202,24 @@ Y =\beta_0 + \beta X + \gamma G + \epsilon
 with $\beta_0 = 2$, $\beta \in \{0.5,2,5,10\}$ the fixed effect of $X\sim \mathcal{B}\binom{n}{0.5}$ with $n = 500$ the number total of samples, $\epsilon \sim \mathcal{N}(0,0.25)$ the bias associated, the random effect of group $\gamma \sim \mathcal{N}(0,\sigma_\gamma)$ if simulated with random effect with $\sigma_\gamma\in\{0.5,5,10,20\})$ and $\gamma=0$ if not random effect and the group $G\in\{1, \dots, K\}$ with $K=10$.
 
 
+## Running the Models
+
 ```{r Monte Carlo}
 simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20),
                     K=10, nK=50, sims=5000){
-  resAllOLS.1 <- list()
-  resAllOLS.2 <- list()
-  resAllMM.1 <- list()
-  estimateAll <- matrix(0, length(fixefEffects)*length(sds)*sims, 12)
+  resAllOLS.1 <- resAllOLS.2 <- resAllMM.1 <- list()
+  estimateAll <- matrix(0, length(fixefEffects)*length(sds)*sims, 12) 
+  yWithSimMean <- yWithoutSimMean <- matrix(0, 500, length(fixefEffects)*length(sds)) 
   n <- K * nK
   G <- factor(rep(1:K, each = nK))
   X <- rbinom(n,size=1,prob = .5)
   k = 1
-  
+  kk = 1
   for (fixefEffect in fixefEffects) {
     for (sdUnit in sds) {
         aleaEffect <- rnorm(K, sd = sdUnit)
-        resOLS.1 <- matrix(0, sims, 3)
-        resOLS.2 <- matrix(0, sims, 3)
-        resMM <- matrix(0, sims, 3)
-        
+        resOLS.1 <- resOLS.2 <- resMM <- matrix(0, sims, 3)
+        yOlsWith <- yOlsWithout <- matrix(0, 500, sims)
         for(i in 1:sims){
           options(warn=-1)
           bias <- rnorm(n, sd = .25)
@@ -240,12 +227,9 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
           Y_without <- intercept + fixefEffect * X + bias
           modOLS.1 <- OLS(Y_with,X)
           modOLS.2 <- OLS(Y_without,X)
-          
           resOLS.1[i,] <- c(modOLS.1$betaOLS, modOLS.1$SE, modOLS.1$Sigm)
           resOLS.2[i,] <- c(modOLS.2$betaOLS, modOLS.2$SE, modOLS.2$Sigm)
-          
           lmerModel.1 <- try({ lme4::lmer(Y_with ~ X + (1|G), REML = TRUE)}, silent = T)
-          
           beta <- lme4::fixef(lmerModel.1)[-1]
           SE_b <- sqrt(diag(as.matrix(vcov(lmerModel.1))))[-1]
           Sigm <- sqrt(stats::var(as.vector(beta %*% t(X))))
@@ -253,8 +237,12 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
           estimateAll[k,] <- c(fixefEffect, modOLS.1$betaOLS,modOLS.2$betaOLS,beta,
                            modOLS.1$SE,modOLS.2$SE,SE_b,
                            modOLS.1$Sigm,modOLS.2$Sigm,Sigm,sdUnit,i)
+          yOlsWith[,i] <- Y_with; yOlsWithout[,i] <- Y_without
           k <- k+1
         }
+        yWithSimMean[,kk] <- rowMeans(yOlsWith)
+        yWithoutSimMean[,kk] <- rowMeans(yOlsWithout)
+        kk <- kk + 1
         
         M <- apply(resOLS.1, 2, mean)
         S <- apply(resOLS.1, 2, sd)
@@ -275,23 +263,37 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
         resAllOLS.2[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_ols.2
         resAllMM.1[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- H_mm
     }
-   
   }
   estimateAll <- as.data.frame(estimateAll)
+  yWithSimMean <- as.data.frame(yWithSimMean) 
+  yWithoutSimMean <- as.data.frame(yWithoutSimMean)
+  yWithSimMean <- cbind.data.frame(X,G,yWithSimMean)
+  yWithoutSimMean <- cbind.data.frame(X,G,yWithoutSimMean)
   colnames(estimateAll) = c('fixefEffect','betaOLS.1','betaOLS.2','betaMM',
                             'seOLS.1','seOLS.2','seMM','sigmOLS.1',
                             'sigmOLS.2','sigmMM','sdUnit','simId')
   return (list('resAllOLS'=resAllOLS.1, 'resAllMM'=resAllMM.1,
-               'resAllOLSWithoutAleaEffect'=resAllOLS.2, "estimateAll"=estimateAll))
+               'resAllOLSWithoutAleaEffect'=resAllOLS.2,
+               "estimateAll"=estimateAll,"yWithSimMean"=yWithSimMean,
+               'yWithoutSimMean'=yWithoutSimMean))
 }
 
 resSim <- simOLS(sims = 500)
+
 dataPLOT <- cbind.data.frame(betaEs = c(resSim$estimateAll[[2]],resSim$estimateAll[[3]],
                                         resSim$estimateAll[[4]]),
                              betas = factor(rep(resSim$estimateAll[[1]],3)),
                              Sigm = factor(rep(resSim$estimateAll[[11]],3)),
                              Method = as.factor(rep(c('OLS.1','OLS.2','MM'),
                                                     each=length(resSim$estimateAll[[1]]))))
+```
+
+
+## Results
+
+$\boldsymbol{\texttt{Plot estimation of }}$$\beta$
+
+```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 
 dataPLOT$Bias = rep(resSim$estimateAll[[1]],3)-dataPLOT$betaEs
 
@@ -315,10 +317,17 @@ facet_wrap(~betas, scales = "free_y",labeller = label_parsed,ncol = 4)+
   ylab(TeX("$\\hat{\\beta}$"))+
   scale_x_discrete(labels=c(TeX("$ols_{\\gamma=0}$"),TeX("$ols_{\\gamma\\neq 0}$"),
                             TeX("$mm_{\\gamma\\neq 0}$")))+
+  theme(strip.text.x = element_text(size=12, face="bold"),
+        strip.text.y = element_text(size=12, face="bold",)) +
   scale_fill_discrete(name=TeX("$values\\ of\\ \\gamma$"),
                          labels=c(TeX("$\\gamma=.5$"),TeX("$\\gamma=5$"),
                             TeX("$\\gamma=10$"),TeX("$\\gamma=20$")))
+```
 
+
+$\boldsymbol{\texttt{Plot bias of etimates }}$$\beta$
+
+```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 ggplot(data=dataPLOT, aes(x=Method, y=Bias))+
   geom_boxplot()+
   theme_bw()+
@@ -328,8 +337,8 @@ ggplot(data=dataPLOT, aes(x=Method, y=Bias))+
   ylab(TeX("$\\beta-\\hat{\\beta}$"))+
   scale_x_discrete(labels=c(TeX("$ols_{\\gamma=0}$"),TeX("$ols_{\\gamma\\neq 0}$"),
                             TeX("$mm_{\\gamma\\neq 0}$")))
-
 ```
+
 \fontsize{10pt}{20pt}
 \selectfont
 \begin{table}[!htbp]
@@ -446,5 +455,168 @@ $\boldsymbol{\beta = 10}$  & OLS & $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\b
 }} 
 \end{table}
 
+## Running models on the average of the simulations
 
+```{r}
+options(warn=-1)
+colnames(resSim$yWithSimMean) <- colnames(resSim$yWithoutSimMean)<-c('X','G',
+                                                                     names(resSim$resAllOLS))
+resMeanSim <- matrix(0,nrow = length(colnames(resSim$yWithSimMean[,-c(1:2)])),9)
+X <- resSim$yWithSimMean$X
+G <- resSim$yWithSimMean$G
+k=1
+for (i in colnames(resSim$yWithSimMean[,-c(1:2)])) {
+  lmerModel <- try({ lme4::lmer(H1, 
+                                data = cbind.data.frame(Y=resSim$yWithSimMean[,i],
+                                                        X=X,
+                                                        G=G),
+                                REML = TRUE)}, silent = T)
+  beta <- lme4::fixef(lmerModel)[-1]
+  SE <- sqrt(diag(as.matrix(vcov(lmerModel))))[-1]
+  Sigm <- sqrt(stats::var(as.vector(beta %*% t(X))))
+  resMeanSim[k,] <- c(unlist(OLS(resSim$yWithSimMean[,i], X)),
+                      unlist(OLS(resSim$yWithoutSimMean[,i], X)),
+                      beta,SE,Sigm)
+  k <- k+1
+}
+resMeanSim <- as.data.frame(resMeanSim)
+```
+
+\fontsize{10pt}{20pt}
+\selectfont
+\begin{table}[!htbp]
+\centering
+\caption{OLS and Mixed Model estimates with 500 Monte-Carlo replicates} 
+{\small
+\resizebox{\textwidth}{!}
+{\begin{tabular}{@{\extracolsep{4pt}}llcccccccccccc}
+\toprule   
+{} & {}  & \multicolumn{3}{c}{$\boldsymbol{OLS_{\gamma\ne0}}$}  & \multicolumn{3}{c}{$\boldsymbol{OLS_{\gamma=0}}$} & \multicolumn{3}{c}{$\boldsymbol{MM_{\gamma\ne0}}$}\\
+ 
+ \cmidrule{3-5} 
+ \cmidrule{6-8} 
+ \cmidrule{9-11}  
+ $\boldsymbol{\beta}$&$\boldsymbol{\Sigma}$ & $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\sigma(\hat\beta)}$ &  $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\sigma(\hat\beta)}$ &  $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\sigma(\hat\beta)}$  \\ 
+\midrule
+&\\
+
+$\beta=0.5$&$\Sigma=0.5$ & `r round(resMeanSim[1,1], 4)` & `r round(resMeanSim[1,2], 4)` & `r round(resMeanSim[1,3], 4)` &  `r round(resMeanSim[1,4], 4)` & `r round(resMeanSim[1,5], 4)` & `r round(resMeanSim[1,6], 4)`& `r round(resMeanSim[1,7], 4)` & `r round(resMeanSim[1,8], 4)` & `r round(resMeanSim[1,9], 4)`\\
+&\\
+&$\Sigma=5$ & `r round(resMeanSim[2,1], 4)` & `r round(resMeanSim[2,2], 4)` & `r round(resMeanSim[2,3], 4)` &  `r round(resMeanSim[2,4], 4)` & `r round(resMeanSim[2,5], 4)` & `r round(resMeanSim[2,6], 4)`& `r round(resMeanSim[2,7], 4)` & `r round(resMeanSim[2,8], 4)` & `r round(resMeanSim[2,9], 4)`\\
+&\\
+&$\Sigma=10$ & `r round(resMeanSim[3,1], 4)` & `r round(resMeanSim[3,2], 4)` & `r round(resMeanSim[3,3], 4)` &  `r round(resMeanSim[3,4], 4)` & `r round(resMeanSim[3,5], 4)` & `r round(resMeanSim[3,6], 4)`& `r round(resMeanSim[3,7], 4)` & `r round(resMeanSim[3,8], 4)` & `r round(resMeanSim[3,9], 4)`\\
+&\\
+&$\Sigma=20$ & `r round(resMeanSim[4,1], 4)` & `r round(resMeanSim[4,2], 4)` & `r round(resMeanSim[4,3], 4)` &  `r round(resMeanSim[4,4], 4)` & `r round(resMeanSim[4,5], 4)` & `r round(resMeanSim[4,6], 4)`& `r round(resMeanSim[4,7], 4)` & `r round(resMeanSim[4,8], 4)` & `r round(resMeanSim[4,9], 4)`\\
+  \hline
+&\\
+
+$\beta=2$&$\Sigma=0.5$ & `r round(resMeanSim[5,1], 4)` & `r round(resMeanSim[5,2], 4)` & `r round(resMeanSim[5,3], 4)` &  `r round(resMeanSim[5,4], 4)` & `r round(resMeanSim[5,5], 4)` & `r round(resMeanSim[5,6], 4)`& `r round(resMeanSim[5,7], 4)` & `r round(resMeanSim[5,8], 4)` & `r round(resMeanSim[5,9], 4)`\\
+&\\
+&$\Sigma=5$ & `r round(resMeanSim[6,1], 4)` & `r round(resMeanSim[6,2], 4)` & `r round(resMeanSim[6,3], 4)` &  `r round(resMeanSim[6,4], 4)` & `r round(resMeanSim[6,5], 4)` & `r round(resMeanSim[6,6], 4)`& `r round(resMeanSim[6,7], 4)` & `r round(resMeanSim[6,8], 4)` & `r round(resMeanSim[6,9], 4)`\\
+&\\
+&$\Sigma=10$ & `r round(resMeanSim[7,1], 4)` & `r round(resMeanSim[7,2], 4)` & `r round(resMeanSim[7,3], 4)` &  `r round(resMeanSim[7,4], 4)` & `r round(resMeanSim[7,5], 4)` & `r round(resMeanSim[7,6], 4)`& `r round(resMeanSim[7,7], 4)` & `r round(resMeanSim[7,8], 4)` & `r round(resMeanSim[7,9], 4)`\\
+&\\
+&$\Sigma=20$ & `r round(resMeanSim[8,1], 4)` & `r round(resMeanSim[8,2], 4)` & `r round(resMeanSim[8,3], 4)` &  `r round(resMeanSim[8,4], 4)` & `r round(resMeanSim[8,5], 4)` & `r round(resMeanSim[8,6], 4)`& `r round(resMeanSim[8,7], 4)` & `r round(resMeanSim[8,8], 4)` & `r round(resMeanSim[8,9], 4)`\\
+
+
+  \hline
+&\\
+
+$\beta=5$&$\Sigma=0.5$ & `r round(resMeanSim[9,1], 4)` & `r round(resMeanSim[9,2], 4)` & `r round(resMeanSim[9,3], 4)` &  `r round(resMeanSim[9,4], 4)` & `r round(resMeanSim[9,5], 4)` & `r round(resMeanSim[9,6], 4)`& `r round(resMeanSim[9,7], 4)` & `r round(resMeanSim[9,8], 4)` & `r round(resMeanSim[9,9], 4)`\\
+&\\
+&$\Sigma=5$ & `r round(resMeanSim[10,1], 4)` & `r round(resMeanSim[10,2], 4)` & `r round(resMeanSim[10,3], 4)` &  `r round(resMeanSim[10,4], 4)` & `r round(resMeanSim[10,5], 4)` & `r round(resMeanSim[10,6], 4)`& `r round(resMeanSim[10,7], 4)` & `r round(resMeanSim[10,8], 4)` & `r round(resMeanSim[10,9], 4)`\\
+&\\
+&$\Sigma=10$ & `r round(resMeanSim[11,1], 4)` & `r round(resMeanSim[11,2], 4)` & `r round(resMeanSim[11,3], 4)` &  `r round(resMeanSim[11,4], 4)` & `r round(resMeanSim[11,5], 4)` & `r round(resMeanSim[11,6], 4)`& `r round(resMeanSim[11,7], 4)` & `r round(resMeanSim[11,8], 4)` & `r round(resMeanSim[11,9], 4)`\\
+&\\
+&$\Sigma=20$ & `r round(resMeanSim[12,1], 4)` & `r round(resMeanSim[12,2], 4)` & `r round(resMeanSim[12,3], 4)` &  `r round(resMeanSim[12,4], 4)` & `r round(resMeanSim[12,5], 4)` & `r round(resMeanSim[12,6], 4)`& `r round(resMeanSim[12,7], 4)` & `r round(resMeanSim[12,8], 4)` & `r round(resMeanSim[12,9], 4)`\\
+
+
+  \hline
+&\\
+
+$\beta=10$&$\Sigma=0.5$ & `r round(resMeanSim[13,1], 4)` & `r round(resMeanSim[13,2], 4)` & `r round(resMeanSim[13,3], 4)` &  `r round(resMeanSim[13,4], 4)` & `r round(resMeanSim[13,5], 4)` & `r round(resMeanSim[13,6], 4)`& `r round(resMeanSim[13,7], 4)` & `r round(resMeanSim[13,8], 4)` & `r round(resMeanSim[13,9], 4)`\\
+&\\
+&$\Sigma=5$ & `r round(resMeanSim[14,1], 4)` & `r round(resMeanSim[14,2], 4)` & `r round(resMeanSim[14,3], 4)` &  `r round(resMeanSim[14,4], 4)` & `r round(resMeanSim[14,5], 4)` & `r round(resMeanSim[14,6], 4)`& `r round(resMeanSim[14,7], 4)` & `r round(resMeanSim[14,8], 4)` & `r round(resMeanSim[14,9], 4)`\\
+&\\
+&$\Sigma=10$ & `r round(resMeanSim[15,1], 4)` & `r round(resMeanSim[15,2], 4)` & `r round(resMeanSim[15,3], 4)` &  `r round(resMeanSim[15,4], 4)` & `r round(resMeanSim[15,5], 4)` & `r round(resMeanSim[15,6], 4)`& `r round(resMeanSim[15,7], 4)` & `r round(resMeanSim[15,8], 4)` & `r round(resMeanSim[15,9], 4)`\\
+&\\
+&$\Sigma=20$ & `r round(resMeanSim[16,1], 4)` & `r round(resMeanSim[16,2], 4)` & `r round(resMeanSim[16,3], 4)` &  `r round(resMeanSim[16,4], 4)` & `r round(resMeanSim[16,5], 4)` & `r round(resMeanSim[16,6], 4)`& `r round(resMeanSim[16,7], 4)` & `r round(resMeanSim[16,8], 4)` & `r round(resMeanSim[16,9], 4)`\\
+\bottomrule
+\end{tabular}
+}} 
+\end{table}
+
+\newpage
+## Visualization of the models
+
+```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
+dataMod <- melt(resSim$yWithSimMean, id.vars=c("X","G"),value.name = "Y")
+dataMod$variable = recode_factor(dataMod$variable, 
+              "0.5_0.5"="gamma==0.5 ~ ';' ~ Sigma == 0.5",
+              "0.5_5"="gamma == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="gamma == 0.5 ~ ';' ~ Sigma == 10",
+              "0.5_20"="gamma == 0.5 ~ ';' ~ Sigma == 20",
+              "2_0.5"="gamma == 2 ~ ';' ~ Sigma == 0.5", "2_5"="gamma == 2 ~ ';' ~ Sigma == 5",
+              "2_10"="gamma == 2 ~ ';' ~ Sigma == 10",
+              "2_20"="gamma == 2 ~ ';' ~ Sigma == 20","5_0.5"="gamma == 5 ~ ';' ~ Sigma == 0.5",
+              "5_5"="gamma == 5 ~ ';' ~ Sigma == 5","5_10"="gamma == 5 ~ ';' ~ Sigma == 10",
+              "5_20"="gamma == 5 ~ ';' ~ Sigma == 20",
+              "10_0.5"="gamma == 10 ~ ';' ~ Sigma == 0.5",
+              "10_5"="gamma == 10 ~ ';' ~ Sigma == 5","10_10"="gamma == 10 ~ ';' ~ Sigma == 10",
+              "10_20"="gamma == 10 ~ ';' ~ Sigma == 20")
+
+ggplot(data = dataMod, aes(x = X, y = Y)) + 
+   geom_point(aes(X, Y), alpha = 0.3)+
+     geom_smooth(formula = as.formula(y~x),aes(x = X, y = Y), 
+                method = "lm", colour="#FC4E07", fullrange = TRUE, se = TRUE)+
+  ggpmisc::stat_poly_eq(formula = as.formula(y~x), 
+             aes(label=paste(..eq.label.., ..rr.label.., sep = "~~~")),
+             parse = TRUE, label.x.npc = "center", size = 3.45)+
+  theme(strip.text.x = element_text(size=12, face="bold"),
+strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
+  facet_wrap(~ variable, ncol=4,  scales = "free_y",labeller = label_parsed)
+```
+
+
+
+```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
+dataMod <- melt(resSim$yWithoutSimMean, id.vars=c("X","G"),value.name = "Y")
+dataMod$variable = recode_factor(dataMod$variable, 
+              "0.5_0.5"="gamma == 0.5 ~ ';' ~ Sigma == 0.5",
+              "0.5_5"="gamma == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="gamma == 0.5 ~ ';' ~ Sigma == 10",
+              "0.5_20"="gamma == 0.5 ~ ';' ~ Sigma == 20",
+              "2_0.5"="gamma == 2 ~ ';' ~ Sigma == 0.5", "2_5"="gamma == 2 ~ ';' ~ Sigma == 5",
+              "2_10"="gamma == 2 ~ ';' ~ Sigma == 10",
+              "2_20"="gamma == 2 ~ ';' ~ Sigma == 20","5_0.5"="gamma == 5 ~ ';' ~ Sigma == 0.5",
+              "5_5"="gamma == 5 ~ ';' ~ Sigma == 5","5_10"="gamma == 5 ~ ';' ~ Sigma == 10",
+              "5_20"="gamma == 5 ~ ';' ~ Sigma == 20",
+              "10_0.5"="gamma == 10 ~ ';' ~ Sigma == 0.5",
+              "10_5"="gamma == 10 ~ ';' ~ Sigma == 5","10_10"="gamma == 10 ~ ';' ~ Sigma == 10",
+              "10_20"="gamma == 10 ~ ';' ~ Sigma == 20")
+
+ggplot(data = dataMod, aes(x = X, y = Y)) + 
+   geom_point(aes(X, Y), alpha = 0.3)+
+     geom_smooth(formula = as.formula(y~x),aes(x = X, y = Y), 
+                method = "lm", colour="#FC4E07", fullrange = TRUE, se = TRUE)+
+  ggpmisc::stat_poly_eq(formula = as.formula(y~x), 
+             aes(label=paste(..eq.label.., ..rr.label.., sep = "~~~")),
+             parse = TRUE, label.x.npc = "center", size = 3.45)+
+  theme(strip.text.x = element_text(size=12, face="bold"),
+strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
+  facet_wrap(~ variable, ncol=4,  scales = "free_y",labeller = label_parsed)
+```
+
+
+```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
+colnames(resSim$yWithSimMean)[10]="Y"
+lmerModel <- lme4::lmer(H1, data=resSim$yWithSimMean)
+ab_lines <- coef(lmerModel)[["G"]] %>% 
+  tibble::rownames_to_column("G") %>% 
+  rename(intercept = `(Intercept)`)
+ab_lines$G <- factor(ab_lines$G, levels=1:K)
+ggplot(resSim$yWithSimMean,aes(x = X, y = Y, colour=G)) + 
+  geom_point() +
+    geom_line(aes(y=predict(lmerModel), group=G)) +
+  geom_line(colour="red",aes(y=predict(lmerModel,re.form=NA),group=G))+
+      theme_bw()+theme(legend.position="none")
+```
 
