@@ -552,17 +552,17 @@ $\beta=10$&$\Sigma=0.5$ & `r round(resMeanSim[13,1], 4)` & `r round(resMeanSim[1
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 dataMod <- melt(resSim$yWithSimMean, id.vars=c("X","G"),value.name = "Y")
 dataMod$variable = recode_factor(dataMod$variable, 
-              "0.5_0.5"="gamma==0.5 ~ ';' ~ Sigma == 0.5",
-              "0.5_5"="gamma == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="gamma == 0.5 ~ ';' ~ Sigma == 10",
-              "0.5_20"="gamma == 0.5 ~ ';' ~ Sigma == 20",
-              "2_0.5"="gamma == 2 ~ ';' ~ Sigma == 0.5", "2_5"="gamma == 2 ~ ';' ~ Sigma == 5",
-              "2_10"="gamma == 2 ~ ';' ~ Sigma == 10",
-              "2_20"="gamma == 2 ~ ';' ~ Sigma == 20","5_0.5"="gamma == 5 ~ ';' ~ Sigma == 0.5",
-              "5_5"="gamma == 5 ~ ';' ~ Sigma == 5","5_10"="gamma == 5 ~ ';' ~ Sigma == 10",
-              "5_20"="gamma == 5 ~ ';' ~ Sigma == 20",
-              "10_0.5"="gamma == 10 ~ ';' ~ Sigma == 0.5",
-              "10_5"="gamma == 10 ~ ';' ~ Sigma == 5","10_10"="gamma == 10 ~ ';' ~ Sigma == 10",
-              "10_20"="gamma == 10 ~ ';' ~ Sigma == 20")
+              "0.5_0.5"="beta==0.5 ~ ';' ~ Sigma == 0.5",
+              "0.5_5"="beta == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="beta == 0.5 ~ ';' ~ Sigma == 10",
+              "0.5_20"="beta == 0.5 ~ ';' ~ Sigma == 20",
+              "2_0.5"="beta == 2 ~ ';' ~ Sigma == 0.5", "2_5"="beta == 2 ~ ';' ~ Sigma == 5",
+              "2_10"="beta == 2 ~ ';' ~ Sigma == 10",
+              "2_20"="beta == 2 ~ ';' ~ Sigma == 20","5_0.5"="beta == 5 ~ ';' ~ Sigma == 0.5",
+              "5_5"="beta == 5 ~ ';' ~ Sigma == 5","5_10"="beta == 5 ~ ';' ~ Sigma == 10",
+              "5_20"="beta == 5 ~ ';' ~ Sigma == 20",
+              "10_0.5"="beta == 10 ~ ';' ~ Sigma == 0.5",
+              "10_5"="beta == 10 ~ ';' ~ Sigma == 5","10_10"="beta == 10 ~ ';' ~ Sigma == 10",
+              "10_20"="beta == 10 ~ ';' ~ Sigma == 20")
 
 ggplot(data = dataMod, aes(x = X, y = Y)) + 
    geom_point(aes(X, Y), alpha = 0.3)+
@@ -581,17 +581,17 @@ strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 dataMod <- melt(resSim$yWithoutSimMean, id.vars=c("X","G"),value.name = "Y")
 dataMod$variable = recode_factor(dataMod$variable, 
-              "0.5_0.5"="gamma == 0.5 ~ ';' ~ Sigma == 0.5",
-              "0.5_5"="gamma == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="gamma == 0.5 ~ ';' ~ Sigma == 10",
-              "0.5_20"="gamma == 0.5 ~ ';' ~ Sigma == 20",
-              "2_0.5"="gamma == 2 ~ ';' ~ Sigma == 0.5", "2_5"="gamma == 2 ~ ';' ~ Sigma == 5",
-              "2_10"="gamma == 2 ~ ';' ~ Sigma == 10",
-              "2_20"="gamma == 2 ~ ';' ~ Sigma == 20","5_0.5"="gamma == 5 ~ ';' ~ Sigma == 0.5",
-              "5_5"="gamma == 5 ~ ';' ~ Sigma == 5","5_10"="gamma == 5 ~ ';' ~ Sigma == 10",
-              "5_20"="gamma == 5 ~ ';' ~ Sigma == 20",
-              "10_0.5"="gamma == 10 ~ ';' ~ Sigma == 0.5",
-              "10_5"="gamma == 10 ~ ';' ~ Sigma == 5","10_10"="gamma == 10 ~ ';' ~ Sigma == 10",
-              "10_20"="gamma == 10 ~ ';' ~ Sigma == 20")
+              "0.5_0.5"="beta == 0.5 ~ ';' ~ Sigma == 0.5",
+              "0.5_5"="beta == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="beta == 0.5 ~ ';' ~ Sigma == 10",
+              "0.5_20"="beta == 0.5 ~ ';' ~ Sigma == 20",
+              "2_0.5"="beta == 2 ~ ';' ~ Sigma == 0.5", "2_5"="beta == 2 ~ ';' ~ Sigma == 5",
+              "2_10"="beta == 2 ~ ';' ~ Sigma == 10",
+              "2_20"="beta == 2 ~ ';' ~ Sigma == 20","5_0.5"="beta == 5 ~ ';' ~ Sigma == 0.5",
+              "5_5"="beta == 5 ~ ';' ~ Sigma == 5","5_10"="beta == 5 ~ ';' ~ Sigma == 10",
+              "5_20"="beta == 5 ~ ';' ~ Sigma == 20",
+              "10_0.5"="beta == 10 ~ ';' ~ Sigma == 0.5",
+              "10_5"="beta == 10 ~ ';' ~ Sigma == 5","10_10"="beta == 10 ~ ';' ~ Sigma == 10",
+              "10_20"="beta == 10 ~ ';' ~ Sigma == 20")
 
 ggplot(data = dataMod, aes(x = X, y = Y)) + 
    geom_point(aes(X, Y), alpha = 0.3)+
