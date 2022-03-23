@@ -67,7 +67,7 @@ SE <- (betaLm[-1] - confint(lmModel)[-1,][1])/1.96
 
 A <- ggplot(dfWith, aes(x = X, y = Y, color = G) ) +
      geom_point() +
-     geom_smooth(formula = as.formula(y ~ x), method = "lm", se=.3,aes(fill = G))+
+     geom_smooth(formula = as.formula(y ~ x), method = "lm",aes(fill = G))+
   theme_bw()+theme(legend.position="none")+
   annotate(geom='text', label=TeX("$\\gamma \\neq 0$"), y=3.7, x=.5)
 
@@ -78,9 +78,9 @@ Sigm.1 <- sqrt(((summary(lmModel)$sigma)**2)*solve(t(X) %*% X))
 betaLm.1 <- lmModel$coefficients
 SE.1 <- (betaLm.1[-1] - confint(lmModel)[-1,][1])/1.96
 
-B <- ggplot(dfWithout, aes(x = X, y = Y, color = G) ) +
+B <- ggplot(dfWithout, aes(x = X, y = Y) ) +
      geom_point() +
-     geom_smooth(formula = as.formula(y ~ x), method = "lm",se = .3, aes(fill = G))+
+     geom_smooth(formula = as.formula(y ~ x), method = "lm")+
   theme_bw()+theme(axis.title.y = element_blank())+
   annotate(geom='text', label=TeX("$\\gamma=0$"), y=3, x=.5)
 cowplot::plot_grid(A, B, labels = c('',''))
@@ -105,7 +105,7 @@ $\gamma=0$& `r round(betaLm.1['X'], 4)` &  `r round(SE.1, 4)` &  `r round(Sigm.1
 
 
 ```{r mixed model}
-options(warn=-1)
+
 # With Random Effect
 lmerModel <- lme4::lmer(H1, data=dfWith)
 betaLmer <- lme4::fixef(lmerModel)
@@ -295,7 +295,7 @@ $\boldsymbol{\texttt{Plot estimation of }}$$\beta$
 
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 
-dataPLOT$Bias = rep(resSim$estimateAll[[1]],3)-dataPLOT$betaEs
+dataPLOT$Bias = (rep(resSim$estimateAll[[1]],3)-dataPLOT$betaEs)/rep(resSim$estimateAll[[1]],3)
 
 dataPLOT$betas <- gsub(0.5, "beta == 0.5",
            gsub(2, "beta == 2",
@@ -334,7 +334,7 @@ ggplot(data=dataPLOT, aes(x=Method, y=Bias))+
   facet_grid(betas~Sigm, scales = "free_y",labeller = label_parsed)+
   theme(strip.text.x = element_text(size=12, face="bold"),
         strip.text.y = element_text(size=12, face="bold",)) +
-  ylab(TeX("$\\beta-\\hat{\\beta}$"))+
+  ylab(TeX("$\\frac{\\beta-\\hat{\\beta}}{\\beta}$"))+
   scale_x_discrete(labels=c(TeX("$ols_{\\gamma=0}$"),TeX("$ols_{\\gamma\\neq 0}$"),
                             TeX("$mm_{\\gamma\\neq 0}$")))
 ```
@@ -486,7 +486,7 @@ resMeanSim <- as.data.frame(resMeanSim)
 \selectfont
 \begin{table}[!htbp]
 \centering
-\caption{OLS and Mixed Model estimates with 500 Monte-Carlo replicates} 
+\caption{OLS and Mixed Model estimates with average 500 Monte-Carlo replicates}
 {\small
 \resizebox{\textwidth}{!}
 {\begin{tabular}{@{\extracolsep{4pt}}llcccccccccccc}
@@ -580,7 +580,7 @@ strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
 
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 dataMod <- melt(resSim$yWithoutSimMean, id.vars=c("X","G"),value.name = "Y")
-dataMod$variable = recode_factor(dataMod$variable, 
+dataMod$variable <- recode_factor(dataMod$variable,
               "0.5_0.5"="beta == 0.5 ~ ';' ~ Sigma == 0.5",
               "0.5_5"="beta == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="beta == 0.5 ~ ';' ~ Sigma == 10",
               "0.5_20"="beta == 0.5 ~ ';' ~ Sigma == 20",
@@ -607,7 +607,7 @@ strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
 
 
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
-colnames(resSim$yWithSimMean)[10]="Y"
+colnames(resSim$yWithSimMean)[10] <- "Y"
 lmerModel <- lme4::lmer(H1, data=resSim$yWithSimMean)
 ab_lines <- coef(lmerModel)[["G"]] %>% 
   tibble::rownames_to_column("G") %>% 
@@ -623,16 +623,99 @@ ggplot(resSim$yWithSimMean,aes(x = X, y = Y, colour=G)) +
 
 # CCDF application
 
-```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
-ccdfRes <- data.frame(ccdfWith =c(0.004 ,-0.0446, -0.1584, -0.2611, -0.3738, -0.3058, -0.1823,-0.1249, -0.0907, -0.0198),
-                      mixedWith =c(-0.004 ,-0.044, -0.1577, -0.2563, -0.3806, -0.3241, -0.2114, -0.1515, -0.1037, -0.0223),
-                      ccdfWithout = c(-0.004, -0.03644, -0.1781, -0.4295, -0.6163, -0.6804, -0.5527, -0.2844, -0.1106, -0.0237),
-                      mixedWithout = c(-0.0041, -0.0369, -0.1785, -0.4295, -0.6163,-0.6804, -0.5527, -0.2844, -0.1081, -0.0237),
-                      indBeta = 1:10)
+## Code
+```{r}
+CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
+                       space_y = FALSE, number_y = length(unique(Y)), plt=FALSE){
+  if (is.null(Z)){
+    colnames(X) <- sapply(seq_len(ncol(X)), function(i){paste0('X', i)})
+    modelmat <- as.matrix(model.matrix(~.,data=X))
+  }
+  else{
+    colnames(X) <- sapply(seq_len(ncol(X)), function(i){paste0('X', i)})
+    colnames(Z) <- sapply(seq_len(ncol(Z)), function(i){paste0('Z', i)})
+    modelmat <- as.matrix(model.matrix(~.,data=cbind(X,Z)))
+  }
+  indexes_X <- which(substring(colnames(modelmat), 1, 1) == "X")
+  p_X <- length(indexes_X)
+  sample_group <- sample_group[,1]
+  modX_OLS <- modelmat[, c(1, indexes_X), drop = FALSE]
 
-ccdfRes <- melt(ccdfRes, id.vars="indBeta",value.name = "Estimate",variable.name = "Model")
+  n_Y_all <- length(Y)
+  Y <- as.numeric(Y)
+
+  if (space_y){
+    y <-  seq(ifelse(length(which(Y==0))==0,min(Y),min(Y[-which(Y==0)])),max(Y[-which.max(Y)]),length.out=number_y)
+  }
+  else{
+    y <- sort(unique(Y))
+  }
+  n_y_unique <- length(y)
+  
+  ind_X <- which(substring(colnames(modelmat),1,1)=="X")
+  betaOLS <- matrix(NA,10,p_X)
+  betaMM <- matrix(NA,10,p_X)
+  seuils <- matrix(NA,10,p_X)
+  SEsOLS <- matrix(NA,10,p_X)
+  SEsMM <- matrix(NA,10,p_X)
+
+  
+  indi_pi <- matrix(NA,n_Y_all,(n_y_unique-1))
+  H1 <- as.formula("Y ~  X + (1|groups)")
+  dataPlots = c()
+  
+  if (length(y)==11){
+    for (i in 1:(n_y_unique-1)){
+      seuils[i,] <- y[i]
+      indi_Y <- 1*(Y<=y[i])
+      indi_pi[,i] <- indi_Y
+      reg <- OLS(indi_Y,modelmat[,-1])
+      betaOLS[i,] <- round(reg$betaOLS,4)
+      SEsOLS[i,] <- round(reg$SE,4)
+      dataMix <- cbind.data.frame(X=X$X1,groups=sample_group)
+      dataGlm <- cbind.data.frame(Y = indi_Y, dataMix)
+      glm1 <- try({ lme4::lmer(H1, data = dataGlm,REML = TRUE)}, silent = T)
+      if(class(glm1) != "try-error") {
+        betaMM[i,] <- round(lme4::fixef(glm1)[ind_X],4)
+        SEsMM[i,] <- round(sqrt(diag(as.matrix(vcov(glm1))))[-1],4)
+      }
+      if(plt){
+        if(i%in%c(1,7,8,9)){
+        dataPlots <- append(dataPlots,dataGlm$Y)
+        }
+      }
+    }
+    betaOLS <- as.vector(betaOLS)
+    betaMM <- as.vector(betaMM)
+
+    SEsOLS <- as.vector(SEsOLS)
+
+    SEsMM <- as.vector(SEsMM)
+    if(plt)
+    {
+      dataPlots <- cbind.data.frame(Y = dataPlots,X=rep(X$X1,4),G=rep(sample_group,4),Ind=rep(rep(c(1,7,8,9),each=length(X$X))))
+      plts <- ggplot(dataPlots) +
+          geom_boxplot(aes(x=X, y=Y, fill = G)) +
+          scale_x_discrete(expand = c(0, 0.5)) +
+          theme_bw()+
+        facet_wrap(~Ind,scales = 'free_y',ncol = 4)
+      print(plts)
+      }
+    return(c(betaOLS,betaMM,SEsOLS,SEsMM))
+  }
+}
+
+```
 
 
+## With alea effect
+```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
+Y <- dfWith$Y
+X <- data.frame(X=dfWith$X)
+G <- data.frame(G = dfWith$G)
+
+res <- CCDF(Y, X, sample_group = G,number_y = 11,space_y = TRUE,plt = TRUE)
+ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=factor(rep(c("OLS","MM"),each=10)))
  ggplot(ccdfRes, aes(indBeta, Estimate, group=Model, colour=Model)) + 
      geom_line(aes(linetype=Model), size=1) +
   geom_point(aes(shape=Model),size=4)+
@@ -641,13 +724,114 @@ ccdfRes <- melt(ccdfRes, id.vars="indBeta",value.name = "Estimate",variable.name
   theme(strip.text.x = element_text(size=12, face="bold"),
         strip.text.y = element_text(size=12, face="bold"))+
    theme_bw()
-   
+```
+## Without alea effect
+```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
+Y <- dfWithout$Y
+X <- data.frame(X=dfWithout$X)
+G <- data.frame(G = dfWithout$G)
+
+res <- CCDF(Y, X, sample_group = G,number_y = 11,space_y = TRUE)
+ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=factor(rep(c("OLS","MM"),each=10)))
+ ggplot(ccdfRes, aes(indBeta, Estimate, group=Model, colour=Model)) + 
+     geom_line(aes(linetype=Model), size=1) +
+  geom_point(aes(shape=Model),size=4)+
+   scale_x_discrete(limits=1:10)+  
+   labs(x = TeX("$W$"),y=TeX("$\\hat{\\beta}$"))+
+  theme(strip.text.x = element_text(size=12, face="bold"),
+        strip.text.y = element_text(size=12, face="bold"))+
+   theme_bw()
+```
+
+## CCDF with Monte carlo with alea effect 
+```{r}
+simCCDF <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20),
+                    K=10, nK=50, sims=5000){
+  estimateAll <- matrix(NA, length(fixefEffects)*length(sds)*sims, 42) 
+  
+  resCCDFprime <- list()
+  yWithSimMean <- yWithoutSimMean <- matrix(NA, 500, length(fixefEffects)*length(sds)) 
+  n <- K * nK
+  G <- rep(1:K, each = nK) 
+  X <- rbinom(n,size=1,prob = .5)
+  k = 1
+  kk = 1
+  for (fixefEffect in fixefEffects) {
+    for (sdUnit in sds) {
+        aleaEffect <- rnorm(K, sd = sdUnit)
+        resCCDF <- matrix(0, sims, 20)
+        yOlsWith <- yOlsWithout <- matrix(0, 500, sims)
+        for(i in 1:sims){
+          options(warn=-1)
+          bias <- rnorm(n, sd = .25)
+          Y_with <- intercept + fixefEffect * X + aleaEffect[G] + bias
+          Y_without <- intercept + fixefEffect * X + bias
+          CCDFRES.1 <- CCDF(Y = Y_with, X = data.frame(X=factor(X,levels = 0:1)), 
+                            sample_group = data.frame(G=factor(G,levels = 1:10)),number_y = 11,space_y = TRUE)
+          
+          # CCDFRES.2 <- CCDF(Y = Y_without, X = data.frame(X=factor(X,levels = 0:1)), 
+          #                   sample_group = data.frame(G=factor(G,levels = 1:10)),number_y = 11,space_y = TRUE)
+          if(any(is.na(CCDFRES.1[1:20])))
+            next
+          resCCDF[i,] = CCDFRES.1[1:20]
+          estimateAll[k,] <- c(CCDFRES.1,sdUnit,i)
+          yOlsWith[,i] <- Y_with; yOlsWithout[,i] <- Y_without
+          k <- k+1
+        }
+        resCCDF <- resCCDF[stats::complete.cases(resCCDF),]
+        yWithSimMean[,kk] <- rowMeans(yOlsWith)
+        yWithoutSimMean[,kk] <- rowMeans(yOlsWithout)
+        kk <- kk + 1
+        M <- apply(resCCDF, 2, mean)
+        S <- apply(resCCDF, 2, sd)
+        resCCDFprime[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- M
+    }
+  }
+  estimateAll <- as.data.frame(estimateAll)
+  yWithSimMean <- as.data.frame(yWithSimMean) 
+  yWithoutSimMean <- as.data.frame(yWithoutSimMean)
+  yWithSimMean <- cbind.data.frame(X,G,yWithSimMean)
+  yWithoutSimMean <- cbind.data.frame(X,G,yWithoutSimMean)
+  return (list("estimateAll"= estimateAll[stats::complete.cases(estimateAll),],
+               "resCCDFprime"= resCCDFprime,
+               "yWithSimMean"= yWithSimMean[stats::complete.cases(yWithSimMean),],
+               'yWithoutSimMean'= yWithoutSimMean[stats::complete.cases(yWithoutSimMean),]))
+}
+resSimCCDF <- simCCDF(sims = 500)
 ```
 
 
 
 
+```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
+dataPlot <- data.frame(indBeta=factor(rep(rep(1:10,2),length(names(resSimCCDF$resCCDFprime)))), 
+                       Values=unlist(resSimCCDF$resCCDFprime,use.names =FALSE),Parms=rep(names(resSimCCDF$resCCDFprime),each=20),
+                      Meth = rep(rep(c("OLS","MM"),each=10),length(names(resSimCCDF$resCCDFprime))))
+
+dataPlot$Parms <- recode_factor(dataPlot$Parms,
+              "0.5_0.5"="beta == 0.5 ~ ';' ~ Sigma == 0.5",
+              "0.5_5"="beta == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="beta == 0.5 ~ ';' ~ Sigma == 10",
+              "0.5_20"="beta == 0.5 ~ ';' ~ Sigma == 20",
+              "2_0.5"="beta == 2 ~ ';' ~ Sigma == 0.5", "2_5"="beta == 2 ~ ';' ~ Sigma == 5",
+              "2_10"="beta == 2 ~ ';' ~ Sigma == 10",
+              "2_20"="beta == 2 ~ ';' ~ Sigma == 20","5_0.5"="beta == 5 ~ ';' ~ Sigma == 0.5",
+              "5_5"="beta == 5 ~ ';' ~ Sigma == 5","5_10"="beta == 5 ~ ';' ~ Sigma == 10",
+              "5_20"="beta == 5 ~ ';' ~ Sigma == 20",
+              "10_0.5"="beta == 10 ~ ';' ~ Sigma == 0.5",
+              "10_5"="beta == 10 ~ ';' ~ Sigma == 5","10_10"="beta == 10 ~ ';' ~ Sigma == 10",
+              "10_20"="beta == 10 ~ ';' ~ Sigma == 20")
 
 
+ ggplot(dataPlot, aes(indBeta, Values, group=Meth, colour=Meth)) + 
+     geom_line(aes(linetype=Meth), size=1) +
+  geom_point(aes(shape=Meth),size=4)+
+   scale_x_discrete(limits=1:10)+  
+   labs(x = TeX("$W$"),y=TeX("$\\hat{\\beta}$"))+
+  theme(strip.text.x = element_text(size=12, face="bold"),
+        strip.text.y = element_text(size=12, face="bold"))+
+   theme_bw()+
+  facet_wrap(~Parms,scales = 'free_y',ncol = 4,labeller = label_parsed)
+
+```
 
 
