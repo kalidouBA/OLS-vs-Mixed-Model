@@ -163,6 +163,7 @@ res <- OLS(dfWith$Y,X)
 res.1 <- OLS(dfWithout$Y,X)
 ```
 
+
 \begin{table}[!htbp] \centering 
 \caption{OLS estimates} 
 \begin{tabular}{@{\extracolsep{5pt}} ccc} 
