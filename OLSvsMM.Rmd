@@ -20,6 +20,9 @@ knitr::opts_chunk$set(cache = FALSE, warning = FALSE, message = FALSE, cache.laz
 
 # Simulation data
 ```{r Simulation}
+seeds24_03_22 <- read.csv("seeds24.03.22.csv")$x
+set.seed(seeds24_03_22[1])
+
 K <- 10 # Nombre de groupe
 nK <- 50 # Nombre d'observations par groupe
 N <- K * nK # Nombre total d'observation
@@ -209,7 +212,7 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
                     K=10, nK=50, sims=5000){
   resAllOLS.1 <- resAllOLS.2 <- resAllMM.1 <- list()
   estimateAll <- matrix(0, length(fixefEffects)*length(sds)*sims, 12) 
-  yWithSimMean <- yWithoutSimMean <- matrix(0, 500, length(fixefEffects)*length(sds)) 
+  yWithSimMean <- yWithoutSimMean <- matrix(0, 500,length(fixefEffects)*length(sds)) 
   n <- K * nK
   G <- factor(rep(1:K, each = nK))
   X <- rbinom(n,size=1,prob = .5)
@@ -217,11 +220,13 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
   kk = 1
   for (fixefEffect in fixefEffects) {
     for (sdUnit in sds) {
+        set.seed(seeds24_03_22[kk])
         aleaEffect <- rnorm(K, sd = sdUnit)
         resOLS.1 <- resOLS.2 <- resMM <- matrix(0, sims, 3)
         yOlsWith <- yOlsWithout <- matrix(0, 500, sims)
         for(i in 1:sims){
           options(warn=-1)
+          set.seed(seeds24_03_22[i])
           bias <- rnorm(n, sd = .25)
           Y_with <- intercept + fixefEffect * X + aleaEffect[G] + bias
           Y_without <- intercept + fixefEffect * X + bias
@@ -361,22 +366,16 @@ $\boldsymbol{\beta = 0.5}$&OLS&  $\boldsymbol{\gamma}\ne0$ &$\boldsymbol{\hat\be
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[1]][2,1], 4)` & `r round(resSim[[1]][[1]][2,2], 4)` & `r round(resSim[[1]][[2]][2,1], 4)` &  `r round(resSim[[1]][[2]][2,2], 4)` & `r round(resSim[[1]][[3]][2,1], 4)` & `r round(resSim[[1]][[3]][2,2], 4)`& `r round(resSim[[1]][[4]][2,1], 4)` & `r round(resSim[[1]][[4]][2,2], 4)`\\ 
 
- &&& $\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[1]][3,1], 4)` & `r round(resSim[[1]][[1]][3,2], 4)` & `r round(resSim[[1]][[2]][3,1], 4)` &  `r round(resSim[[1]][[2]][3,2], 4)` & `r round(resSim[[1]][[3]][3,1], 4)` & `r round(resSim[[1]][[3]][3,2], 4)`& `r round(resSim[[1]][[4]][3,1], 4)` & `r round(resSim[[1]][[4]][3,2], 4)`\\
-
-
 \\
 &&$\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ & `r round(resSim[[3]][[1]][1,1], 4)` & `r round(resSim[[3]][[1]][1,2], 4)` & `r round(resSim[[3]][[2]][1,1], 4)` &  `r round(resSim[[3]][[2]][1,2], 4)` & `r round(resSim[[3]][[3]][1,1], 4)` & `r round(resSim[[3]][[3]][1,2], 4)`& `r round(resSim[[3]][[4]][1,1], 4)` & `r round(resSim[[3]][[4]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[1]][2,1], 4)` & `r round(resSim[[3]][[1]][2,2], 4)` & `r round(resSim[[3]][[2]][2,1], 4)` &  `r round(resSim[[3]][[2]][2,2], 4)` & `r round(resSim[[3]][[3]][2,1], 4)` & `r round(resSim[[3]][[3]][2,2], 4)`& `r round(resSim[[3]][[4]][2,1], 4)` & `r round(resSim[[3]][[4]][2,2], 4)`\\ 
- 
-  &&& $\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[1]][3,1], 4)` & `r round(resSim[[3]][[1]][3,2], 4)` & `r round(resSim[[3]][[2]][3,1], 4)` &  `r round(resSim[[3]][[2]][3,2], 4)` & `r round(resSim[[3]][[3]][3,1], 4)` & `r round(resSim[[3]][[3]][3,2], 4)`& `r round(resSim[[3]][[4]][3,1], 4)` & `r round(resSim[[3]][[4]][3,2], 4)`\\ 
 
  \\
 &MM& $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\beta}$ & `r round(resSim[[2]][[1]][1,1], 4)` & `r round(resSim[[2]][[1]][1,2], 4)` & `r round(resSim[[2]][[2]][1,1], 4)` &  `r round(resSim[[2]][[2]][1,2], 4)` & `r round(resSim[[2]][[3]][1,1], 4)` & `r round(resSim[[2]][[3]][1,2], 4)`& `r round(resSim[[2]][[4]][1,1], 4)` & `r round(resSim[[2]][[4]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[1]][2,1], 4)` & `r round(resSim[[2]][[1]][2,2], 4)` & `r round(resSim[[2]][[2]][2,1], 4)` &  `r round(resSim[[2]][[2]][2,2], 4)` & `r round(resSim[[2]][[3]][2,1], 4)` & `r round(resSim[[2]][[3]][2,2], 4)`& `r round(resSim[[2]][[4]][2,1], 4)` & `r round(resSim[[2]][[4]][2,2], 4)`\\ 
 
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[1]][3,1], 4)` & `r round(resSim[[2]][[1]][3,2], 4)` & `r round(resSim[[2]][[2]][3,1], 4)` &  `r round(resSim[[2]][[2]][3,2], 4)` & `r round(resSim[[2]][[3]][3,1], 4)` & `r round(resSim[[2]][[3]][3,2], 4)`& `r round(resSim[[2]][[4]][3,1], 4)` & `r round(resSim[[2]][[4]][3,2], 4)`\\
 
 
   \hline
@@ -385,69 +384,51 @@ $\boldsymbol{\beta = 0.5}$&OLS&  $\boldsymbol{\gamma}\ne0$ &$\boldsymbol{\hat\be
 $\boldsymbol{\beta = 2}$  & OLS & $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\beta}$ & `r round(resSim[[1]][[5]][1,1], 4)` & `r round(resSim[[1]][[5]][1,2], 4)` & `r round(resSim[[1]][[6]][1,1], 4)` &  `r round(resSim[[1]][[6]][1,2], 4)` & `r round(resSim[[1]][[7]][1,1], 4)` & `r round(resSim[[1]][[7]][1,2], 4)`& `r round(resSim[[1]][[8]][1,1], 4)` & `r round(resSim[[1]][[8]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[5]][2,1], 4)` & `r round(resSim[[1]][[5]][2,2], 4)` & `r round(resSim[[1]][[6]][2,1], 4)` &  `r round(resSim[[1]][[6]][2,2], 4)` & `r round(resSim[[1]][[7]][2,1], 4)` & `r round(resSim[[1]][[7]][2,2], 4)`& `r round(resSim[[1]][[8]][2,1], 4)` & `r round(resSim[[1]][[8]][2,2], 4)`\\ 
-  
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[5]][3,1], 4)` & `r round(resSim[[1]][[5]][3,2], 4)` & `r round(resSim[[1]][[6]][3,1], 4)` &  `r round(resSim[[1]][[6]][3,2], 4)` & `r round(resSim[[1]][[7]][3,1], 4)` & `r round(resSim[[1]][[7]][3,2], 4)`& `r round(resSim[[1]][[8]][3,1], 4)` & `r round(resSim[[1]][[8]][3,2], 4)`\\ 
 
 \\
 &&  $\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[3]][[5]][1,1], 4)` & `r round(resSim[[3]][[5]][1,2], 4)` & `r round(resSim[[3]][[6]][1,1], 4)` &  `r round(resSim[[3]][[6]][1,2], 4)` & `r round(resSim[[3]][[7]][1,1], 4)` & `r round(resSim[[3]][[7]][1,2], 4)`& `r round(resSim[[3]][[8]][1,1], 4)` & `r round(resSim[[3]][[8]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[5]][2,1], 4)` & `r round(resSim[[3]][[5]][2,2], 4)` & `r round(resSim[[3]][[6]][2,1], 4)` &  `r round(resSim[[3]][[6]][2,2], 4)` & `r round(resSim[[3]][[7]][2,1], 4)` & `r round(resSim[[3]][[7]][2,2], 4)`& `r round(resSim[[3]][[8]][2,1], 4)` & `r round(resSim[[3]][[8]][2,2], 4)`\\ 
 
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[5]][3,1], 4)` & `r round(resSim[[3]][[5]][3,2], 4)` & `r round(resSim[[3]][[6]][3,1], 4)` &  `r round(resSim[[3]][[6]][3,2], 4)` & `r round(resSim[[3]][[7]][3,1], 4)` & `r round(resSim[[3]][[7]][3,2], 4)`& `r round(resSim[[3]][[8]][3,1], 4)` & `r round(resSim[[3]][[8]][3,2], 4)`\\
-
  \\ 
   
  &MM&$\boldsymbol{\gamma}\ne0$& $\boldsymbol{\hat\beta}$ & `r round(resSim[[2]][[5]][1,1], 4)` & `r round(resSim[[2]][[5]][1,2], 4)` & `r round(resSim[[2]][[6]][1,1], 4)` &  `r round(resSim[[2]][[6]][1,2], 4)` & `r round(resSim[[2]][[7]][1,1], 4)` & `r round(resSim[[2]][[7]][1,2], 4)`& `r round(resSim[[2]][[8]][1,1], 4)` & `r round(resSim[[2]][[8]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[5]][2,1], 4)` & `r round(resSim[[2]][[5]][2,2], 4)` & `r round(resSim[[2]][[6]][2,1], 4)` &  `r round(resSim[[2]][[6]][2,2], 4)` & `r round(resSim[[2]][[7]][2,1], 4)` & `r round(resSim[[2]][[7]][2,2], 4)`& `r round(resSim[[2]][[8]][2,1], 4)` & `r round(resSim[[2]][[8]][2,2], 4)`\\ 
-  
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[5]][3,1], 4)` & `r round(resSim[[2]][[5]][3,2], 4)` & `r round(resSim[[2]][[6]][3,1], 4)` &  `r round(resSim[[2]][[6]][3,2], 4)` & `r round(resSim[[2]][[7]][3,1], 4)` & `r round(resSim[[2]][[7]][3,2], 4)`& `r round(resSim[[2]][[8]][3,1], 4)` & `r round(resSim[[2]][[8]][3,2], 4)`\\
 
   \hline
 &\\
 $\boldsymbol{\beta = 5}$  & OLS &$\boldsymbol{\gamma}\ne0$& $\boldsymbol{\hat\beta}$ &  `r round(resSim[[1]][[9]][1,1], 4)` & `r round(resSim[[1]][[9]][1,2], 4)` & `r round(resSim[[1]][[10]][1,1], 4)` &  `r round(resSim[[1]][[10]][1,2], 4)` & `r round(resSim[[1]][[11]][1,1], 4)` & `r round(resSim[[1]][[11]][1,2], 4)`& `r round(resSim[[1]][[12]][1,1], 4)` & `r round(resSim[[1]][[12]][1,2], 4)`\\ 
 
 &&& $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[9]][2,1], 4)` & `r round(resSim[[1]][[9]][2,2], 4)` & `r round(resSim[[1]][[10]][2,1], 4)` &  `r round(resSim[[1]][[10]][2,2], 4)` & `r round(resSim[[1]][[11]][2,1], 4)` & `r round(resSim[[1]][[11]][2,2], 4)`& `r round(resSim[[1]][[12]][2,1], 4)` & `r round(resSim[[1]][[12]][2,2], 4)`\\ 
-
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[9]][3,1], 4)` & `r round(resSim[[1]][[9]][3,2], 4)` & `r round(resSim[[1]][[10]][3,1], 4)` &  `r round(resSim[[1]][[10]][3,2], 4)` & `r round(resSim[[1]][[11]][3,1], 4)` & `r round(resSim[[1]][[11]][3,2], 4)`& `r round(resSim[[1]][[12]][3,1], 4)` & `r round(resSim[[1]][[12]][3,2], 4)`\\ 
   
 
 \\
 &&  $\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[3]][[9]][1,1], 4)` & `r round(resSim[[3]][[9]][1,2], 4)` & `r round(resSim[[3]][[10]][1,1], 4)` &  `r round(resSim[[3]][[10]][1,2], 4)` & `r round(resSim[[3]][[11]][1,1], 4)` & `r round(resSim[[3]][[11]][1,2], 4)`& `r round(resSim[[3]][[12]][1,1], 4)` & `r round(resSim[[3]][[12]][1,2], 4)`\\ 
 
 &&& $\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[9]][2,1], 4)` & `r round(resSim[[3]][[9]][2,2], 4)` & `r round(resSim[[3]][[10]][2,1], 4)` &  `r round(resSim[[3]][[10]][2,2], 4)` & `r round(resSim[[3]][[11]][2,1], 4)` & `r round(resSim[[3]][[11]][2,2], 4)`& `r round(resSim[[3]][[12]][2,1], 4)` & `r round(resSim[[3]][[12]][2,2], 4)`\\ 
-
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[9]][3,1], 4)` & `r round(resSim[[3]][[9]][3,2], 4)` & `r round(resSim[[3]][[10]][3,1], 4)` &  `r round(resSim[[3]][[10]][3,2], 4)` & `r round(resSim[[3]][[11]][3,1], 4)` & `r round(resSim[[3]][[11]][3,2], 4)`& `r round(resSim[[3]][[12]][3,1], 4)` & `r round(resSim[[3]][[12]][3,2], 4)`\\ 
-
   
   \\
 &MM&$\boldsymbol{\gamma}\ne0$& $\boldsymbol{\hat\beta}$ &  `r round(resSim[[2]][[9]][1,1], 4)` & `r round(resSim[[2]][[9]][1,2], 4)` & `r round(resSim[[2]][[10]][1,1], 4)` &  `r round(resSim[[2]][[10]][1,2], 4)` & `r round(resSim[[2]][[11]][1,1], 4)` & `r round(resSim[[2]][[11]][1,2], 4)`& `r round(resSim[[2]][[12]][1,1], 4)` & `r round(resSim[[2]][[12]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[9]][2,1], 4)` & `r round(resSim[[2]][[9]][2,2], 4)` & `r round(resSim[[2]][[10]][2,1], 4)` &  `r round(resSim[[2]][[10]][2,2], 4)` & `r round(resSim[[2]][[11]][2,1], 4)` & `r round(resSim[[2]][[11]][2,2], 4)`& `r round(resSim[[2]][[12]][2,1], 4)` & `r round(resSim[[2]][[12]][2,2], 4)`\\ 
 
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[9]][3,1], 4)` & `r round(resSim[[2]][[9]][3,2], 4)` & `r round(resSim[[2]][[10]][3,1], 4)` &  `r round(resSim[[2]][[10]][3,2], 4)` & `r round(resSim[[2]][[11]][3,1], 4)` & `r round(resSim[[2]][[11]][3,2], 4)`& `r round(resSim[[2]][[12]][3,1], 4)` & `r round(resSim[[2]][[12]][3,2], 4)`\\
 
   \hline
 &\\
 $\boldsymbol{\beta = 10}$  & OLS & $\boldsymbol{\gamma}\ne0$&$\boldsymbol{\hat\beta}$ & `r round(resSim[[1]][[13]][1,1], 4)` & `r round(resSim[[1]][[13]][1,2], 4)` & `r round(resSim[[1]][[14]][1,1], 4)` &  `r round(resSim[[1]][[14]][1,2], 4)` & `r round(resSim[[1]][[15]][1,1], 4)` & `r round(resSim[[1]][[15]][1,2], 4)`& `r round(resSim[[1]][[16]][1,1], 4)` & `r round(resSim[[1]][[16]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[1]][[13]][2,1], 4)` & `r round(resSim[[1]][[13]][2,2], 4)` & `r round(resSim[[1]][[14]][2,1], 4)` &  `r round(resSim[[1]][[14]][2,2], 4)` & `r round(resSim[[1]][[15]][2,1], 4)` & `r round(resSim[[1]][[15]][2,2], 4)`& `r round(resSim[[1]][[16]][2,1], 4)` & `r round(resSim[[1]][[16]][2,2], 4)`\\ 
-  
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[1]][[13]][3,1], 4)` & `r round(resSim[[1]][[13]][3,2], 4)` & `r round(resSim[[1]][[14]][3,1], 4)` &  `r round(resSim[[1]][[14]][3,2], 4)` & `r round(resSim[[1]][[15]][3,1], 4)` & `r round(resSim[[1]][[15]][3,2], 4)`& `r round(resSim[[1]][[16]][3,1], 4)` & `r round(resSim[[1]][[16]][3,2], 4)`\\
 
 \\
 && $\boldsymbol{\gamma}=0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[3]][[13]][1,1], 4)` & `r round(resSim[[3]][[13]][1,2], 4)` & `r round(resSim[[3]][[14]][1,1], 4)` &  `r round(resSim[[3]][[14]][1,2], 4)` & `r round(resSim[[3]][[15]][1,1], 4)` & `r round(resSim[[3]][[15]][1,2], 4)`& `r round(resSim[[3]][[16]][1,1], 4)` & `r round(resSim[[3]][[16]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[3]][[13]][2,1], 4)` & `r round(resSim[[3]][[13]][2,2], 4)` & `r round(resSim[[3]][[14]][2,1], 4)` &  `r round(resSim[[3]][[14]][2,2], 4)` & `r round(resSim[[3]][[15]][2,1], 4)` & `r round(resSim[[3]][[15]][2,2], 4)`& `r round(resSim[[3]][[16]][2,1], 4)` & `r round(resSim[[3]][[16]][2,2], 4)`\\ 
-  
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[3]][[13]][3,1], 4)` & `r round(resSim[[3]][[13]][3,2], 4)` & `r round(resSim[[3]][[14]][3,1], 4)` &  `r round(resSim[[3]][[14]][3,2], 4)` & `r round(resSim[[3]][[15]][3,1], 4)` & `r round(resSim[[3]][[15]][3,2], 4)`& `r round(resSim[[3]][[16]][3,1], 4)` & `r round(resSim[[3]][[16]][3,2], 4)`\\
 
  \\
  &MM &$\boldsymbol{\gamma}\ne0$ &$\boldsymbol{\hat\beta}$ &  `r round(resSim[[2]][[13]][1,1], 4)` & `r round(resSim[[2]][[13]][1,2], 4)` & `r round(resSim[[2]][[14]][1,1], 4)` &  `r round(resSim[[2]][[14]][1,2], 4)` & `r round(resSim[[2]][[15]][1,1], 4)` & `r round(resSim[[2]][[15]][1,2], 4)`& `r round(resSim[[2]][[16]][1,1], 4)` & `r round(resSim[[2]][[16]][1,2], 4)`\\ 
 
 &&&$\boldsymbol{SE(\hat\beta)}$ & `r round(resSim[[2]][[13]][2,1], 4)` & `r round(resSim[[2]][[13]][2,2], 4)` & `r round(resSim[[2]][[14]][2,1], 4)` &  `r round(resSim[[2]][[14]][2,2], 4)` & `r round(resSim[[2]][[15]][2,1], 4)` & `r round(resSim[[2]][[15]][2,2], 4)`& `r round(resSim[[2]][[16]][2,1], 4)` & `r round(resSim[[2]][[16]][2,2], 4)`\\ 
-  
-&&&$\boldsymbol{\sigma(\hat\beta)}$ & `r round(resSim[[2]][[13]][3,1], 4)` & `r round(resSim[[2]][[13]][3,2], 4)` & `r round(resSim[[2]][[14]][3,1], 4)` &  `r round(resSim[[2]][[14]][3,2], 4)` & `r round(resSim[[2]][[15]][3,1], 4)` & `r round(resSim[[2]][[15]][3,2], 4)`& `r round(resSim[[2]][[16]][3,1], 4)` & `r round(resSim[[2]][[16]][3,2], 4)`\\
 
 &\\
 \bottomrule
@@ -482,69 +463,69 @@ for (i in colnames(resSim$yWithSimMean[,-c(1:2)])) {
 resMeanSim <- as.data.frame(resMeanSim)
 ```
 
-\fontsize{10pt}{20pt}
-\selectfont
-\begin{table}[!htbp]
-\centering
-\caption{OLS and Mixed Model estimates with average 500 Monte-Carlo replicates}
-{\small
-\resizebox{\textwidth}{!}
-{\begin{tabular}{@{\extracolsep{4pt}}llcccccccccccc}
-\toprule   
-{} & {}  & \multicolumn{3}{c}{$\boldsymbol{OLS_{\gamma\ne0}}$}  & \multicolumn{3}{c}{$\boldsymbol{OLS_{\gamma=0}}$} & \multicolumn{3}{c}{$\boldsymbol{MM_{\gamma\ne0}}$}\\
- 
- \cmidrule{3-5} 
- \cmidrule{6-8} 
- \cmidrule{9-11}  
- $\boldsymbol{\beta}$&$\boldsymbol{\Sigma}$ & $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\sigma(\hat\beta)}$ &  $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\sigma(\hat\beta)}$ &  $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\sigma(\hat\beta)}$  \\ 
-\midrule
-&\\
+<!-- \fontsize{10pt}{20pt} -->
+<!-- \selectfont -->
+<!-- \begin{table}[!htbp] -->
+<!-- \centering -->
+<!-- \caption{OLS and Mixed Model estimates with average 500 Monte-Carlo replicates} -->
+<!-- {\small -->
+<!-- \resizebox{\textwidth}{!} -->
+<!-- {\begin{tabular}{@{\extracolsep{4pt}}llccccccccc} -->
+<!-- \toprule    -->
+<!-- {} & {}  & \multicolumn{2}{c}{$\boldsymbol{OLS_{\gamma\ne0}}$}  & \multicolumn{2}{c}{$\boldsymbol{OLS_{\gamma=0}}$} & \multicolumn{2}{c}{$\boldsymbol{MM_{\gamma\ne0}}$}\\ -->
 
-$\beta=0.5$&$\Sigma=0.5$ & `r round(resMeanSim[1,1], 4)` & `r round(resMeanSim[1,2], 4)` & `r round(resMeanSim[1,3], 4)` &  `r round(resMeanSim[1,4], 4)` & `r round(resMeanSim[1,5], 4)` & `r round(resMeanSim[1,6], 4)`& `r round(resMeanSim[1,7], 4)` & `r round(resMeanSim[1,8], 4)` & `r round(resMeanSim[1,9], 4)`\\
-&\\
-&$\Sigma=5$ & `r round(resMeanSim[2,1], 4)` & `r round(resMeanSim[2,2], 4)` & `r round(resMeanSim[2,3], 4)` &  `r round(resMeanSim[2,4], 4)` & `r round(resMeanSim[2,5], 4)` & `r round(resMeanSim[2,6], 4)`& `r round(resMeanSim[2,7], 4)` & `r round(resMeanSim[2,8], 4)` & `r round(resMeanSim[2,9], 4)`\\
-&\\
-&$\Sigma=10$ & `r round(resMeanSim[3,1], 4)` & `r round(resMeanSim[3,2], 4)` & `r round(resMeanSim[3,3], 4)` &  `r round(resMeanSim[3,4], 4)` & `r round(resMeanSim[3,5], 4)` & `r round(resMeanSim[3,6], 4)`& `r round(resMeanSim[3,7], 4)` & `r round(resMeanSim[3,8], 4)` & `r round(resMeanSim[3,9], 4)`\\
-&\\
-&$\Sigma=20$ & `r round(resMeanSim[4,1], 4)` & `r round(resMeanSim[4,2], 4)` & `r round(resMeanSim[4,3], 4)` &  `r round(resMeanSim[4,4], 4)` & `r round(resMeanSim[4,5], 4)` & `r round(resMeanSim[4,6], 4)`& `r round(resMeanSim[4,7], 4)` & `r round(resMeanSim[4,8], 4)` & `r round(resMeanSim[4,9], 4)`\\
-  \hline
-&\\
+<!--  \cmidrule{3-4}  -->
+<!--  \cmidrule{5-6}  -->
+<!--  \cmidrule{7-8}   -->
+<!--  $\boldsymbol{\beta}$&$\boldsymbol{\Sigma}$ & $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ &  $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$ & $\boldsymbol{\hat\beta}$ & $\boldsymbol{SE(\hat\beta)}$  \\  -->
+<!-- \midrule -->
+<!-- &\\ -->
 
-$\beta=2$&$\Sigma=0.5$ & `r round(resMeanSim[5,1], 4)` & `r round(resMeanSim[5,2], 4)` & `r round(resMeanSim[5,3], 4)` &  `r round(resMeanSim[5,4], 4)` & `r round(resMeanSim[5,5], 4)` & `r round(resMeanSim[5,6], 4)`& `r round(resMeanSim[5,7], 4)` & `r round(resMeanSim[5,8], 4)` & `r round(resMeanSim[5,9], 4)`\\
-&\\
-&$\Sigma=5$ & `r round(resMeanSim[6,1], 4)` & `r round(resMeanSim[6,2], 4)` & `r round(resMeanSim[6,3], 4)` &  `r round(resMeanSim[6,4], 4)` & `r round(resMeanSim[6,5], 4)` & `r round(resMeanSim[6,6], 4)`& `r round(resMeanSim[6,7], 4)` & `r round(resMeanSim[6,8], 4)` & `r round(resMeanSim[6,9], 4)`\\
-&\\
-&$\Sigma=10$ & `r round(resMeanSim[7,1], 4)` & `r round(resMeanSim[7,2], 4)` & `r round(resMeanSim[7,3], 4)` &  `r round(resMeanSim[7,4], 4)` & `r round(resMeanSim[7,5], 4)` & `r round(resMeanSim[7,6], 4)`& `r round(resMeanSim[7,7], 4)` & `r round(resMeanSim[7,8], 4)` & `r round(resMeanSim[7,9], 4)`\\
-&\\
-&$\Sigma=20$ & `r round(resMeanSim[8,1], 4)` & `r round(resMeanSim[8,2], 4)` & `r round(resMeanSim[8,3], 4)` &  `r round(resMeanSim[8,4], 4)` & `r round(resMeanSim[8,5], 4)` & `r round(resMeanSim[8,6], 4)`& `r round(resMeanSim[8,7], 4)` & `r round(resMeanSim[8,8], 4)` & `r round(resMeanSim[8,9], 4)`\\
+<!-- $\beta=0.5$&$\Sigma=0.5$ & `r round(resMeanSim[1,1], 4)` & `r round(resMeanSim[1,2], 4)` &  `r round(resMeanSim[1,4], 4)` & `r round(resMeanSim[1,5], 4)` & `r round(resMeanSim[1,7], 4)` & `r round(resMeanSim[1,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=5$ & `r round(resMeanSim[2,1], 4)` & `r round(resMeanSim[2,2], 4)` &  `r round(resMeanSim[2,4], 4)` & `r round(resMeanSim[2,5], 4)` &  `r round(resMeanSim[2,7], 4)` & `r round(resMeanSim[2,8], 4)` \\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=10$ & `r round(resMeanSim[3,1], 4)` & `r round(resMeanSim[3,2], 4)`  &  `r round(resMeanSim[3,4], 4)` & `r round(resMeanSim[3,5], 4)` & `r round(resMeanSim[3,7], 4)` & `r round(resMeanSim[3,8], 4)` \\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=20$ & `r round(resMeanSim[4,1], 4)` & `r round(resMeanSim[4,2], 4)`  &  `r round(resMeanSim[4,4], 4)` & `r round(resMeanSim[4,5], 4)` & `r round(resMeanSim[4,7], 4)` & `r round(resMeanSim[4,8], 4)`\\ -->
+<!--   \hline -->
+<!-- &\\ -->
 
-
-  \hline
-&\\
-
-$\beta=5$&$\Sigma=0.5$ & `r round(resMeanSim[9,1], 4)` & `r round(resMeanSim[9,2], 4)` & `r round(resMeanSim[9,3], 4)` &  `r round(resMeanSim[9,4], 4)` & `r round(resMeanSim[9,5], 4)` & `r round(resMeanSim[9,6], 4)`& `r round(resMeanSim[9,7], 4)` & `r round(resMeanSim[9,8], 4)` & `r round(resMeanSim[9,9], 4)`\\
-&\\
-&$\Sigma=5$ & `r round(resMeanSim[10,1], 4)` & `r round(resMeanSim[10,2], 4)` & `r round(resMeanSim[10,3], 4)` &  `r round(resMeanSim[10,4], 4)` & `r round(resMeanSim[10,5], 4)` & `r round(resMeanSim[10,6], 4)`& `r round(resMeanSim[10,7], 4)` & `r round(resMeanSim[10,8], 4)` & `r round(resMeanSim[10,9], 4)`\\
-&\\
-&$\Sigma=10$ & `r round(resMeanSim[11,1], 4)` & `r round(resMeanSim[11,2], 4)` & `r round(resMeanSim[11,3], 4)` &  `r round(resMeanSim[11,4], 4)` & `r round(resMeanSim[11,5], 4)` & `r round(resMeanSim[11,6], 4)`& `r round(resMeanSim[11,7], 4)` & `r round(resMeanSim[11,8], 4)` & `r round(resMeanSim[11,9], 4)`\\
-&\\
-&$\Sigma=20$ & `r round(resMeanSim[12,1], 4)` & `r round(resMeanSim[12,2], 4)` & `r round(resMeanSim[12,3], 4)` &  `r round(resMeanSim[12,4], 4)` & `r round(resMeanSim[12,5], 4)` & `r round(resMeanSim[12,6], 4)`& `r round(resMeanSim[12,7], 4)` & `r round(resMeanSim[12,8], 4)` & `r round(resMeanSim[12,9], 4)`\\
+<!-- $\beta=2$&$\Sigma=0.5$ & `r round(resMeanSim[5,1], 4)` & `r round(resMeanSim[5,2], 4)`  &  `r round(resMeanSim[5,4], 4)` & `r round(resMeanSim[5,5], 4)`& `r round(resMeanSim[5,7], 4)` & `r round(resMeanSim[5,8], 4)` \\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=5$ & `r round(resMeanSim[6,1], 4)` & `r round(resMeanSim[6,2], 4)` &  `r round(resMeanSim[6,4], 4)` & `r round(resMeanSim[6,5], 4)` & `r round(resMeanSim[6,7], 4)` & `r round(resMeanSim[6,8], 4)` \\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=10$ & `r round(resMeanSim[7,1], 4)` & `r round(resMeanSim[7,2], 4)` &  `r round(resMeanSim[7,4], 4)` & `r round(resMeanSim[7,5], 4)`& `r round(resMeanSim[7,7], 4)` & `r round(resMeanSim[7,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=20$ & `r round(resMeanSim[8,1], 4)` & `r round(resMeanSim[8,2], 4)` &  `r round(resMeanSim[8,4], 4)` & `r round(resMeanSim[8,5], 4)` &  `r round(resMeanSim[8,7], 4)` & `r round(resMeanSim[8,8], 4)` \\ -->
 
 
-  \hline
-&\\
+<!--   \hline -->
+<!-- &\\ -->
 
-$\beta=10$&$\Sigma=0.5$ & `r round(resMeanSim[13,1], 4)` & `r round(resMeanSim[13,2], 4)` & `r round(resMeanSim[13,3], 4)` &  `r round(resMeanSim[13,4], 4)` & `r round(resMeanSim[13,5], 4)` & `r round(resMeanSim[13,6], 4)`& `r round(resMeanSim[13,7], 4)` & `r round(resMeanSim[13,8], 4)` & `r round(resMeanSim[13,9], 4)`\\
-&\\
-&$\Sigma=5$ & `r round(resMeanSim[14,1], 4)` & `r round(resMeanSim[14,2], 4)` & `r round(resMeanSim[14,3], 4)` &  `r round(resMeanSim[14,4], 4)` & `r round(resMeanSim[14,5], 4)` & `r round(resMeanSim[14,6], 4)`& `r round(resMeanSim[14,7], 4)` & `r round(resMeanSim[14,8], 4)` & `r round(resMeanSim[14,9], 4)`\\
-&\\
-&$\Sigma=10$ & `r round(resMeanSim[15,1], 4)` & `r round(resMeanSim[15,2], 4)` & `r round(resMeanSim[15,3], 4)` &  `r round(resMeanSim[15,4], 4)` & `r round(resMeanSim[15,5], 4)` & `r round(resMeanSim[15,6], 4)`& `r round(resMeanSim[15,7], 4)` & `r round(resMeanSim[15,8], 4)` & `r round(resMeanSim[15,9], 4)`\\
-&\\
-&$\Sigma=20$ & `r round(resMeanSim[16,1], 4)` & `r round(resMeanSim[16,2], 4)` & `r round(resMeanSim[16,3], 4)` &  `r round(resMeanSim[16,4], 4)` & `r round(resMeanSim[16,5], 4)` & `r round(resMeanSim[16,6], 4)`& `r round(resMeanSim[16,7], 4)` & `r round(resMeanSim[16,8], 4)` & `r round(resMeanSim[16,9], 4)`\\
-\bottomrule
-\end{tabular}
-}} 
-\end{table}
+<!-- $\beta=5$&$\Sigma=0.5$ & `r round(resMeanSim[9,1], 4)` & `r round(resMeanSim[9,2], 4)` &  `r round(resMeanSim[9,4], 4)` & `r round(resMeanSim[9,5], 4)` & `r round(resMeanSim[9,7], 4)` & `r round(resMeanSim[9,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=5$ & `r round(resMeanSim[10,1], 4)` & `r round(resMeanSim[10,2], 4)` &  `r round(resMeanSim[10,4], 4)` & `r round(resMeanSim[10,5], 4)` & `r round(resMeanSim[10,7], 4)` & `r round(resMeanSim[10,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=10$ & `r round(resMeanSim[11,1], 4)` & `r round(resMeanSim[11,2], 4)` &  `r round(resMeanSim[11,4], 4)` & `r round(resMeanSim[11,5], 4)` & `r round(resMeanSim[11,7], 4)` & `r round(resMeanSim[11,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=20$ & `r round(resMeanSim[12,1], 4)` & `r round(resMeanSim[12,2], 4)` &  `r round(resMeanSim[12,4], 4)` & `r round(resMeanSim[12,5], 4)` &  `r round(resMeanSim[12,7], 4)` & `r round(resMeanSim[12,8], 4)`\\ -->
+
+
+<!--   \hline -->
+<!-- &\\ -->
+
+<!-- $\beta=10$&$\Sigma=0.5$ & `r round(resMeanSim[13,1], 4)` & `r round(resMeanSim[13,2], 4)` &  `r round(resMeanSim[13,4], 4)` & `r round(resMeanSim[13,5], 4)` & `r round(resMeanSim[13,7], 4)` & `r round(resMeanSim[13,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=5$ & `r round(resMeanSim[14,1], 4)` & `r round(resMeanSim[14,2], 4)` &  `r round(resMeanSim[14,4], 4)` & `r round(resMeanSim[14,5], 4)` & `r round(resMeanSim[14,7], 4)` & `r round(resMeanSim[14,8], 4)` \\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=10$ & `r round(resMeanSim[15,1], 4)` & `r round(resMeanSim[15,2], 4)`&  `r round(resMeanSim[15,4], 4)` & `r round(resMeanSim[15,5], 4)`& `r round(resMeanSim[15,7], 4)` & `r round(resMeanSim[15,8], 4)`\\ -->
+<!-- &\\ -->
+<!-- &$\Sigma=20$ & `r round(resMeanSim[16,1], 4)` & `r round(resMeanSim[16,2], 4)` &  `r round(resMeanSim[16,4], 4)` & `r round(resMeanSim[16,5], 4)` &  `r round(resMeanSim[16,7], 4)` & `r round(resMeanSim[16,8], 4)`\\ -->
+<!-- \bottomrule -->
+<!-- \end{tabular} -->
+<!-- }}  -->
+<!-- \end{table} -->
 
 \newpage
 ## Visualization of the models
@@ -606,6 +587,8 @@ strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
 ```
 
 
+
+
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 colnames(resSim$yWithSimMean)[10] <- "Y"
 lmerModel <- lme4::lmer(H1, data=resSim$yWithSimMean)
@@ -627,6 +610,7 @@ ggplot(resSim$yWithSimMean,aes(x = X, y = Y, colour=G)) +
 ```{r}
 CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
                        space_y = FALSE, number_y = length(unique(Y)), plt=FALSE){
+  cdf <- list()
   if (is.null(Z)){
     colnames(X) <- sapply(seq_len(ncol(X)), function(i){paste0('X', i)})
     modelmat <- as.matrix(model.matrix(~.,data=X))
@@ -658,11 +642,9 @@ CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
   seuils <- matrix(NA,10,p_X)
   SEsOLS <- matrix(NA,10,p_X)
   SEsMM <- matrix(NA,10,p_X)
-
-  
   indi_pi <- matrix(NA,n_Y_all,(n_y_unique-1))
   H1 <- as.formula("Y ~  X + (1|groups)")
-  dataPlots = c()
+  dataPlots = list()
   
   if (length(y)==11){
     for (i in 1:(n_y_unique-1)){
@@ -680,32 +662,60 @@ CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
         SEsMM[i,] <- round(sqrt(diag(as.matrix(vcov(glm1))))[-1],4)
       }
       if(plt){
-        if(i%in%c(1,7,8,9)){
-        dataPlots <- append(dataPlots,dataGlm$Y)
+        if(i%in%c(3,5,7,8,9)){
+        dataPlots[[paste0("",y[i])]] <- dataGlm$Y
         }
       }
     }
     betaOLS <- as.vector(betaOLS)
     betaMM <- as.vector(betaMM)
-
     SEsOLS <- as.vector(SEsOLS)
-
     SEsMM <- as.vector(SEsMM)
     if(plt)
     {
-      dataPlots <- cbind.data.frame(Y = dataPlots,X=rep(X$X1,4),G=rep(sample_group,4),Ind=rep(rep(c(1,7,8,9),each=length(X$X))))
-      plts <- ggplot(dataPlots) +
-          geom_boxplot(aes(x=X, y=Y, fill = G)) +
-          scale_x_discrete(expand = c(0, 0.5)) +
-          theme_bw()+
-        facet_wrap(~Ind,scales = 'free_y',ncol = 4)
-      print(plts)
-      }
-    return(c(betaOLS,betaMM,SEsOLS,SEsMM))
+      valsSeuils <- paste0("W(",c(3,5,7,8,9),") == ", names(dataPlots))
+      dataPlots <- cbind.data.frame(as.data.frame(dataPlots),X=factor(X$X1), G=sample_group)
+      dataPlots = melt(dataPlots, id.vars=c("X","G"),value.name = "Y")
+      dataPlots$Y <- factor(dataPlots$Y)
+      dataPlots$variable <- as.factor(rep(valsSeuils,each=nrow(X)))
+      plts <- ggplot(dataPlots,aes(x=X, y=Y))+
+          geom_jitter(aes(color=X),size=3)+
+          ggpubr::color_palette("jco")+
+          facet_wrap(~variable,scales = 'free_y',ncol = 5,labeller = label_parsed)+
+           theme(
+            text = element_text(size=15, face = "bold"),
+            strip.text.x = element_text(
+              size = 15, face = "bold"
+              ),
+            strip.text.y = element_text(
+              size = 15, face = "bold"
+              )
+            )+ theme(legend.position="none")
+       print(plts)
+        
+       cdf <- ccdf::CCDF(Y = Y, X = X, number_y = number_y, space_y = TRUE)
+       df_plot <- data.frame("y" = cdf$y, "x" = cdf$x, "cdf" = cdf$cdf, "ccdf" = cdf$ccdf)
+        levels(df_plot$x) <- unique(X[,1])
+          df_plot$x <- ordered(df_plot$x, levels = levels(df_plot$x))
+          l_X <- length(unique(X[,1]))
+    
+          plotCDF <- ggplot() + ggtitle(colnames(Y)) +
+            geom_step(data = df_plot, aes_string(x = "y", y = "cdf", 
+                                                 color = shQuote(viridisLite::viridis(n=(l_X+1))[1])),
+                                                  size = 0.5,linetype="dotted") +
+            geom_step(data = df_plot, aes_string(x = "y", y = "ccdf", color = "x"), size = 0.5) +
+            scale_color_manual(name = "", labels=c("CDF", paste0("CCDF X=", levels(df_plot$x)[ordered(levels(df_plot$x))])),
+                               values = viridisLite::viridis(n=l_X+1),
+                               guide = guide_legend(override.aes = list(linetype = c("dotted",rep("solid",l_X))))) + xlab("gene expression") +
+            ylab("value") + theme_bw() + theme(plot.title = element_text(hjust = 0.5))
+            print(plotCDF)
+    }
+    return(c(betaOLS,betaMM))
   }
 }
 
 ```
+
 
 
 ## With alea effect
@@ -713,8 +723,8 @@ CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
 Y <- dfWith$Y
 X <- data.frame(X=dfWith$X)
 G <- data.frame(G = dfWith$G)
-
 res <- CCDF(Y, X, sample_group = G,number_y = 11,space_y = TRUE,plt = TRUE)
+
 ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=factor(rep(c("OLS","MM"),each=10)))
  ggplot(ccdfRes, aes(indBeta, Estimate, group=Model, colour=Model)) + 
      geom_line(aes(linetype=Model), size=1) +
@@ -725,6 +735,8 @@ ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=facto
         strip.text.y = element_text(size=12, face="bold"))+
    theme_bw()
 ```
+
+
 ## Without alea effect
 ```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 Y <- dfWithout$Y
@@ -743,36 +755,44 @@ ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=facto
    theme_bw()
 ```
 
+
+
 ## CCDF with Monte carlo with alea effect 
 ```{r}
 simCCDF <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20),
                     K=10, nK=50, sims=5000){
-  estimateAll <- matrix(NA, length(fixefEffects)*length(sds)*sims, 42) 
+  estimateAll <- matrix(NA, length(fixefEffects)*length(sds)*sims, 22) 
   
-  resCCDFprime <- list()
+  resCCDFprime <- CCDFBIZ <- list()
   yWithSimMean <- yWithoutSimMean <- matrix(NA, 500, length(fixefEffects)*length(sds)) 
   n <- K * nK
   G <- rep(1:K, each = nK) 
   X <- rbinom(n,size=1,prob = .5)
   k = 1
   kk = 1
+  yNotConv <- list()
   for (fixefEffect in fixefEffects) {
     for (sdUnit in sds) {
+      set.seed(seeds24_03_22[kk])
         aleaEffect <- rnorm(K, sd = sdUnit)
         resCCDF <- matrix(0, sims, 20)
         yOlsWith <- yOlsWithout <- matrix(0, 500, sims)
         for(i in 1:sims){
+          set.seed(seeds24_03_22[i])
           options(warn=-1)
           bias <- rnorm(n, sd = .25)
           Y_with <- intercept + fixefEffect * X + aleaEffect[G] + bias
           Y_without <- intercept + fixefEffect * X + bias
           CCDFRES.1 <- CCDF(Y = Y_with, X = data.frame(X=factor(X,levels = 0:1)), 
                             sample_group = data.frame(G=factor(G,levels = 1:10)),number_y = 11,space_y = TRUE)
-          
-          # CCDFRES.2 <- CCDF(Y = Y_without, X = data.frame(X=factor(X,levels = 0:1)), 
-          #                   sample_group = data.frame(G=factor(G,levels = 1:10)),number_y = 11,space_y = TRUE)
-          if(any(is.na(CCDFRES.1[1:20])))
+          CCDFBIZ[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- data.frame(Y=Y_with,
+                                                                                X=factor(X,levels = 0:1),
+                                                                                G=factor(G,levels = 1:10))
+          if(any(is.na(CCDFRES.1[1:20]))){
+            yNotConv[[as.character(paste0(fixefEffect,"_",sdUnit))]] <- Y_with
             next
+          }
+          
           resCCDF[i,] = CCDFRES.1[1:20]
           estimateAll[k,] <- c(CCDFRES.1,sdUnit,i)
           yOlsWith[,i] <- Y_with; yOlsWithout[,i] <- Y_without
@@ -795,7 +815,10 @@ simCCDF <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,2
   return (list("estimateAll"= estimateAll[stats::complete.cases(estimateAll),],
                "resCCDFprime"= resCCDFprime,
                "yWithSimMean"= yWithSimMean[stats::complete.cases(yWithSimMean),],
-               'yWithoutSimMean'= yWithoutSimMean[stats::complete.cases(yWithoutSimMean),]))
+               'yWithoutSimMean'= yWithoutSimMean[stats::complete.cases(yWithoutSimMean),],
+               'CCDFBIZ'=CCDFBIZ,
+               'yNotConv'=yNotConv,
+               'X'=X,'G'=G))
 }
 resSimCCDF <- simCCDF(sims = 500)
 ```
@@ -804,10 +827,16 @@ resSimCCDF <- simCCDF(sims = 500)
 
 
 ```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
-dataPlot <- data.frame(indBeta=factor(rep(rep(1:10,2),length(names(resSimCCDF$resCCDFprime)))), 
-                       Values=unlist(resSimCCDF$resCCDFprime,use.names =FALSE),Parms=rep(names(resSimCCDF$resCCDFprime),each=20),
-                      Meth = rep(rep(c("OLS","MM"),each=10),length(names(resSimCCDF$resCCDFprime))))
 
+
+dataPlot <- data.frame(indBeta=factor(rep(rep(1:10,2),length(names(resSimCCDF$resCCDFprime)))), 
+                       Values=unlist(resSimCCDF$resCCDFprime,use.names =FALSE),
+                       Parms=rep(names(resSimCCDF$resCCDFprime),each=20),
+                       Meth = rep(rep(c("OLS","MM"),each=10),length(names(resSimCCDF$resCCDFprime))))
+
+notCvg <- names(resSimCCDF$resCCDFprime[sapply(resSimCCDF$resCCDFprime,sum)==0])
+
+dataPlot <- dataPlot[!(dataPlot$Parms %in% notCvg),]
 dataPlot$Parms <- recode_factor(dataPlot$Parms,
               "0.5_0.5"="beta == 0.5 ~ ';' ~ Sigma == 0.5",
               "0.5_5"="beta == 0.5 ~ ';' ~ Sigma == 5","0.5_10"="beta == 0.5 ~ ';' ~ Sigma == 10",
@@ -834,4 +863,16 @@ dataPlot$Parms <- recode_factor(dataPlot$Parms,
 
 ```
 
+
+
+```{r,fig.width=15, fig.height=10, fig.fullwidth=TRUE}
+dataPlot <- data.frame(X=factor(rep(resSimCCDF$X,length(notCvg))), 
+                       G=factor(rep(resSimCCDF$G,length(notCvg))),
+                       Values=unlist(resSimCCDF$yNotConv[notCvg],use.names =FALSE),Parms=rep(notCvg,each=20))
+ggplot(dataPlot) +
+  geom_boxplot(aes(x=X, y=Values, fill = G)) +
+  scale_x_discrete(expand = c(0, 0.5)) +
+  theme_bw()+ 
+  facet_wrap(~Parms, scales = 'free_y',ncol = 3)
+```
 
