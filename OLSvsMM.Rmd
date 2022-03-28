@@ -6,6 +6,7 @@ output:
     df_print: paged
 ---
 
+
 ```{r Library}
 library(knitr) 
 library(kableExtra)
@@ -22,7 +23,6 @@ knitr::opts_chunk$set(cache = FALSE, warning = FALSE, message = FALSE, cache.laz
 ```{r Simulation}
 seeds24_03_22 <- read.csv("seeds24.03.22.csv")$x
 set.seed(seeds24_03_22[1])
-
 K <- 10 # Nombre de groupe
 nK <- 50 # Nombre d'observations par groupe
 N <- K * nK # Nombre total d'observation
@@ -40,7 +40,6 @@ dfWith <- data.frame(X, Y, G)
 dfWithout <- data.frame(X, Y=Y_withoutAlea, G)
 H0 <- formula(Y ~ X)
 H1 <- formula(Y ~ X + (1|G))
-
 dataPlot = cbind.data.frame(X=rep(factor(X),2), Y = c(Y, Y_withoutAlea), 
                             G = factor(c(G,X),levels = 0:10),
                             Effect = factor(rep(c("gamma != 1", "gamma == 0"),
@@ -56,31 +55,24 @@ ggplot(dataPlot) +
 
 # Linear model with lm function
 
-
-
 ```{r }
 options(warn=-1)
 X_prime <- cbind(1, X)
-
 # With Random Effect
 lmModel <- lm(H0,data = dfWith)
 Sigm <- sqrt(((summary(lmModel)$sigma)**2)*solve(t(X) %*% X))
 betaLm <- lmModel$coefficients
 SE <- (betaLm[-1] - confint(lmModel)[-1,][1])/1.96
-
 A <- ggplot(dfWith, aes(x = X, y = Y, color = G) ) +
      geom_point() +
      geom_smooth(formula = as.formula(y ~ x), method = "lm",aes(fill = G))+
   theme_bw()+theme(legend.position="none")+
   annotate(geom='text', label=TeX("$\\gamma \\neq 0$"), y=3.7, x=.5)
-
-
 # Without Random Effect
 lmModel <- lm(H0,data = dfWithout)
 Sigm.1 <- sqrt(((summary(lmModel)$sigma)**2)*solve(t(X) %*% X))
 betaLm.1 <- lmModel$coefficients
 SE.1 <- (betaLm.1[-1] - confint(lmModel)[-1,][1])/1.96
-
 B <- ggplot(dfWithout, aes(x = X, y = Y) ) +
      geom_point() +
      geom_smooth(formula = as.formula(y ~ x), method = "lm")+
@@ -91,13 +83,13 @@ cowplot::plot_grid(A, B, labels = c('',''))
 
 \begin{table}[!htbp] \centering 
 \caption{Linear regression estimates with \texttt{lm()}} 
-\begin{tabular}{@{\extracolsep{5pt}} cccc} 
+\begin{tabular}{@{\extracolsep{5pt}} ccc} 
 \\[-1.8ex]\hline 
 \hline \\[-1.8ex] 
- & $\hat{\beta}$ & $SE(\hat{\beta})$ & $\sigma(\hat{\beta})$\\ 
+ & $\hat{\beta}$ & $SE(\hat{\beta})$\\ 
 \hline \\[-1.8ex] 
-$\gamma\ne0$& `r round(betaLm['X'], 4)` &  `r round(SE, 4)` &  `r round(Sigm, 4)`\\ 
-$\gamma=0$& `r round(betaLm.1['X'], 4)` &  `r round(SE.1, 4)` &  `r round(Sigm.1, 4)`\\ 
+$\gamma\ne0$& `r round(betaLm['X'], 4)` &  `r round(SE, 4)`\\ 
+$\gamma=0$& `r round(betaLm.1['X'], 4)` &  `r round(SE.1, 4)`\\ 
 \hline \\[-1.8ex] 
 \end{tabular} 
 \end{table} 
@@ -105,10 +97,7 @@ $\gamma=0$& `r round(betaLm.1['X'], 4)` &  `r round(SE.1, 4)` &  `r round(Sigm.1
 
 # Mixed model with lmer function 
 
-
-
 ```{r mixed model}
-
 # With Random Effect
 lmerModel <- lme4::lmer(H1, data=dfWith)
 betaLmer <- lme4::fixef(lmerModel)
@@ -124,7 +113,6 @@ lmerModel.1 <- lme4::lmer(H1, data=dfWithout)
 betaLmer.1 <- lme4::fixef(lmerModel.1)
 SE.1 <- sqrt(diag(as.matrix(vcov(lmerModel.1))))[-1]
 Sigm.1 <- sqrt(stats::var(as.vector(betaLmer.1 %*% t(X))))
-
 B <- ggplot(dfWithout, aes(x=X, y=Y, colour=G)) +
     geom_point(size=1.5) +
     geom_line(aes(y=predict(lmerModel.1), group=G), size=1.3) +
@@ -135,13 +123,13 @@ cowplot::plot_grid(A, B, labels = c('',''))
 
 \begin{table}[!htbp] \centering 
 \caption{Mixed Model estimates with \texttt{lmer()}} 
-\begin{tabular}{@{\extracolsep{5pt}} cccc} 
+\begin{tabular}{@{\extracolsep{5pt}} ccc} 
 \\[-1.8ex]\hline 
 \hline \\[-1.8ex] 
- & $\hat{\beta}$ & $SE(\hat{\beta})$  & $\sigma(\hat{\beta})$\\ 
+ & $\hat{\beta}$ & $SE(\hat{\beta})$\\ 
 \hline \\[-1.8ex] 
-$\gamma\ne0$& `r round(betaLmer['X'], 4)` &  `r round(SE, 4)` &  `r round(Sigm, 4)` \\ 
-$\gamma=0$& `r round(betaLmer.1['X'], 4)` &  `r round(SE.1, 4)` &  `r round(Sigm.1, 4)`\\ 
+$\gamma\ne0$& `r round(betaLmer['X'], 4)` &  `r round(SE, 4)`\\ 
+$\gamma=0$& `r round(betaLmer.1['X'], 4)` &  `r round(SE.1, 4)`\\ 
 \hline \\[-1.8ex] 
 \end{tabular} 
 \end{table} 
@@ -158,7 +146,6 @@ OLS <- function(Y, X){
   betaOLS <- solve(crossprod(modX_OLS))%*%(t(modX_OLS)%*%Y)
   k <- ncol(modX_OLS)
   n <- nrow(modX_OLS)
-
   residuals <- as.matrix(Y - (betaOLS[1, , drop=FALSE]) - X * betaOLS[indexes_X, , 
                                                                       drop=FALSE])   
   RSS <- as.numeric(t(residuals)%*%residuals)
@@ -178,13 +165,13 @@ res.1 <- OLS(dfWithout$Y,X)
 
 \begin{table}[!htbp] \centering 
 \caption{OLS estimates} 
-\begin{tabular}{@{\extracolsep{5pt}} cccc} 
+\begin{tabular}{@{\extracolsep{5pt}} ccc} 
 \\[-1.8ex]\hline 
 \hline \\[-1.8ex] 
- & $\hat{\beta}$ & $SE(\hat{\beta})$  & $\sigma(\hat{\beta})$ \\ 
+ & $\hat{\beta}$ & $SE(\hat{\beta})$ \\ 
 \hline \\[-1.8ex] 
-$\gamma\ne0$& `r round(res$betaOLS, 4)` &  `r round(res$SE, 4)` &  `r round(Sigm, 4)` \\ 
-$\gamma=0$& `r round(res.1$betaOLS, 4)` &  `r round(res.1$SE, 4)` & `r round(Sigm.1, 4)`\\ 
+$\gamma\ne0$& `r round(res$betaOLS, 4)` &  `r round(res$SE, 4)` \\ 
+$\gamma=0$& `r round(res.1$betaOLS, 4)` &  `r round(res.1$SE, 4)`\\ 
 \hline \\[-1.8ex] 
 \end{tabular} 
 \end{table} 
@@ -260,7 +247,6 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
         M <- apply(resMM, 2, mean)
         S <- apply(resMM, 2, sd)
         H_mm <- matrix(c(M[1], S[1], M[2], S[2], M[3], S[3]), ncol = 2, byrow = TRUE)
-
         dimnames(H_ols.1) <- dimnames(H_mm) <- 
           dimnames(H_ols.2)  <- list( c('Beta','Standard Error', 'Sigm'), c('mean', 'se'))
         
@@ -282,9 +268,7 @@ simOLS <- function (intercept=2, fixefEffects = c(.5,2,5,10), sds = c(.5,5,10,20
                "estimateAll"=estimateAll,"yWithSimMean"=yWithSimMean,
                'yWithoutSimMean'=yWithoutSimMean))
 }
-
 resSim <- simOLS(sims = 500)
-
 dataPLOT <- cbind.data.frame(betaEs = c(resSim$estimateAll[[2]],resSim$estimateAll[[3]],
                                         resSim$estimateAll[[4]]),
                              betas = factor(rep(resSim$estimateAll[[1]],3)),
@@ -299,23 +283,19 @@ dataPLOT <- cbind.data.frame(betaEs = c(resSim$estimateAll[[2]],resSim$estimateA
 $\boldsymbol{\texttt{Plot estimation of }}$$\beta$
 
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
-
 dataPLOT$Bias = (rep(resSim$estimateAll[[1]],3)-dataPLOT$betaEs)/rep(resSim$estimateAll[[1]],3)
-
 dataPLOT$betas <- gsub(0.5, "beta == 0.5",
            gsub(2, "beta == 2",
            gsub(10, "beta == 10",dataPLOT$betas)))
 dataPLOT[dataPLOT$betas==5,'betas']="beta == 5"
 dataPLOT$betas = factor(dataPLOT$betas,levels = c("beta == 0.5","beta == 2", 
                                                   "beta == 5","beta == 10"))
-
 dataPLOT$Sigm <- gsub(0.5, "Sigma == 0.5",
            gsub(10, "Sigma == 10",
            gsub(20, "Sigma == 20",dataPLOT$Sigm)))
 dataPLOT[dataPLOT$Sigm==5,'Sigm']="Sigma == 5"
 dataPLOT$Sigm = factor(dataPLOT$Sigm,levels = c("Sigma == 0.5","Sigma == 5",
                                                 "Sigma == 10","Sigma == 20"))
-
 ggplot(dataPLOT, aes(Method,betaEs))+
 geom_boxplot(position="dodge",aes(fill=Sigm))+
 facet_wrap(~betas, scales = "free_y",labeller = label_parsed,ncol = 4)+
@@ -544,7 +524,6 @@ dataMod$variable = recode_factor(dataMod$variable,
               "10_0.5"="beta == 10 ~ ';' ~ Sigma == 0.5",
               "10_5"="beta == 10 ~ ';' ~ Sigma == 5","10_10"="beta == 10 ~ ';' ~ Sigma == 10",
               "10_20"="beta == 10 ~ ';' ~ Sigma == 20")
-
 ggplot(data = dataMod, aes(x = X, y = Y)) + 
    geom_point(aes(X, Y), alpha = 0.3)+
      geom_smooth(formula = as.formula(y~x),aes(x = X, y = Y), 
@@ -556,7 +535,6 @@ ggplot(data = dataMod, aes(x = X, y = Y)) +
 strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
   facet_wrap(~ variable, ncol=4,  scales = "free_y",labeller = label_parsed)
 ```
-
 
 
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
@@ -573,7 +551,6 @@ dataMod$variable <- recode_factor(dataMod$variable,
               "10_0.5"="beta == 10 ~ ';' ~ Sigma == 0.5",
               "10_5"="beta == 10 ~ ';' ~ Sigma == 5","10_10"="beta == 10 ~ ';' ~ Sigma == 10",
               "10_20"="beta == 10 ~ ';' ~ Sigma == 20")
-
 ggplot(data = dataMod, aes(x = X, y = Y)) + 
    geom_point(aes(X, Y), alpha = 0.3)+
      geom_smooth(formula = as.formula(y~x),aes(x = X, y = Y), 
@@ -585,8 +562,6 @@ ggplot(data = dataMod, aes(x = X, y = Y)) +
 strip.text.y = element_text(size=12, face="bold",))+theme_bw()+
   facet_wrap(~ variable, ncol=4,  scales = "free_y",labeller = label_parsed)
 ```
-
-
 
 
 ```{r, fig.width=12, fig.height=6, fig.fullwidth=TRUE}
@@ -624,10 +599,8 @@ CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
   p_X <- length(indexes_X)
   sample_group <- sample_group[,1]
   modX_OLS <- modelmat[, c(1, indexes_X), drop = FALSE]
-
   n_Y_all <- length(Y)
   Y <- as.numeric(Y)
-
   if (space_y){
     y <-  seq(ifelse(length(which(Y==0))==0,min(Y),min(Y[-which(Y==0)])),max(Y[-which.max(Y)]),length.out=number_y)
   }
@@ -713,7 +686,6 @@ CCDF <- function(Y, X, Z = NULL, sample_group = NULL,
     return(c(betaOLS,betaMM))
   }
 }
-
 ```
 
 
@@ -724,7 +696,6 @@ Y <- dfWith$Y
 X <- data.frame(X=dfWith$X)
 G <- data.frame(G = dfWith$G)
 res <- CCDF(Y, X, sample_group = G,number_y = 11,space_y = TRUE,plt = TRUE)
-
 ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=factor(rep(c("OLS","MM"),each=10)))
  ggplot(ccdfRes, aes(indBeta, Estimate, group=Model, colour=Model)) + 
      geom_line(aes(linetype=Model), size=1) +
@@ -737,12 +708,12 @@ ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=facto
 ```
 
 
+
 ## Without alea effect
 ```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
 Y <- dfWithout$Y
 X <- data.frame(X=dfWithout$X)
 G <- data.frame(G = dfWithout$G)
-
 res <- CCDF(Y, X, sample_group = G,number_y = 11,space_y = TRUE)
 ccdfRes <- data.frame(indBeta=factor(rep(1:10,2)),Estimate=res[1:20],Model=factor(rep(c("OLS","MM"),each=10)))
  ggplot(ccdfRes, aes(indBeta, Estimate, group=Model, colour=Model)) + 
@@ -824,18 +795,12 @@ resSimCCDF <- simCCDF(sims = 500)
 ```
 
 
-
-
 ```{r,fig.width=12, fig.height=6, fig.fullwidth=TRUE}
-
-
 dataPlot <- data.frame(indBeta=factor(rep(rep(1:10,2),length(names(resSimCCDF$resCCDFprime)))), 
                        Values=unlist(resSimCCDF$resCCDFprime,use.names =FALSE),
                        Parms=rep(names(resSimCCDF$resCCDFprime),each=20),
                        Meth = rep(rep(c("OLS","MM"),each=10),length(names(resSimCCDF$resCCDFprime))))
-
 notCvg <- names(resSimCCDF$resCCDFprime[sapply(resSimCCDF$resCCDFprime,sum)==0])
-
 dataPlot <- dataPlot[!(dataPlot$Parms %in% notCvg),]
 dataPlot$Parms <- recode_factor(dataPlot$Parms,
               "0.5_0.5"="beta == 0.5 ~ ';' ~ Sigma == 0.5",
@@ -849,8 +814,6 @@ dataPlot$Parms <- recode_factor(dataPlot$Parms,
               "10_0.5"="beta == 10 ~ ';' ~ Sigma == 0.5",
               "10_5"="beta == 10 ~ ';' ~ Sigma == 5","10_10"="beta == 10 ~ ';' ~ Sigma == 10",
               "10_20"="beta == 10 ~ ';' ~ Sigma == 20")
-
-
  ggplot(dataPlot, aes(indBeta, Values, group=Meth, colour=Meth)) + 
      geom_line(aes(linetype=Meth), size=1) +
   geom_point(aes(shape=Meth),size=4)+
@@ -860,9 +823,7 @@ dataPlot$Parms <- recode_factor(dataPlot$Parms,
         strip.text.y = element_text(size=12, face="bold"))+
    theme_bw()+
   facet_wrap(~Parms,scales = 'free_y',ncol = 4,labeller = label_parsed)
-
 ```
-
 
 
 ```{r,fig.width=15, fig.height=10, fig.fullwidth=TRUE}
@@ -875,4 +836,3 @@ ggplot(dataPlot) +
   theme_bw()+ 
   facet_wrap(~Parms, scales = 'free_y',ncol = 3)
 ```
-
